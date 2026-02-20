@@ -1,3 +1,10 @@
+redshift:
+  mcp_url: "http://internal-ecm-gateway-svc-464678860.eu-west-2.elb.amazonaws.com:80/mcp"
+  timeout_seconds: 180
+  retries: 3
+  retry_delay: 8.0
+  schema: "dev.public"
+
 mixpanel:
   base_url: "https://data.mixpanel.com/api/2.0"
   engage_url: "https://mixpanel.com/api/2.0"

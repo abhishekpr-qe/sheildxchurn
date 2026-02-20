@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
 from churn.domain.models import FunnelConfig
+
+
+@dataclass(frozen=True)
+class RedshiftSettings:
+    mcp_url: str
+    timeout_seconds: int
+    retries: int
+    retry_delay: float
+    schema: str
 
 
 @dataclass(frozen=True)
@@ -24,6 +34,7 @@ class ExportSettings:
 
 @dataclass(frozen=True)
 class AppConfig:
+    redshift: RedshiftSettings
     mixpanel: MixpanelSettings
     export: ExportSettings
     funnels: tuple[FunnelConfig, ...]
@@ -34,6 +45,7 @@ def load_config(config_path: str, secret_path: str) -> AppConfig:
     raw = _load_yaml(config_path)
     secret = _load_secret(secret_path)
 
+    rs = raw["redshift"]
     mp = raw["mixpanel"]
     ex = raw["export"]
 
@@ -42,7 +54,16 @@ def load_config(config_path: str, secret_path: str) -> AppConfig:
         for name, f in raw.get("funnels", {}).items()
     )
 
+    mcp_url = os.environ.get("MCP_URL", rs["mcp_url"])
+
     return AppConfig(
+        redshift=RedshiftSettings(
+            mcp_url=mcp_url,
+            timeout_seconds=rs["timeout_seconds"],
+            retries=rs["retries"],
+            retry_delay=rs["retry_delay"],
+            schema=rs["schema"],
+        ),
         mixpanel=MixpanelSettings(
             base_url=mp["base_url"],
             engage_url=mp["engage_url"],
