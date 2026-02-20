@@ -1,0 +1,23 @@
+mixpanel:
+  base_url: "https://data.mixpanel.com/api/2.0"
+  engage_url: "https://mixpanel.com/api/2.0"
+  timeout_seconds: 30
+
+export:
+  event_name: "$mp_web_page_view"
+  from_date: "2025-01-01"
+  to_date: "2025-01-31"
+
+funnels:
+  onboarding:
+    steps:
+      - "Home Screen"
+      - "Sign Up Screen"
+      - "Profile Setup"
+      - "Dashboard"
+  checkout:
+    steps:
+      - "Product Screen"
+      - "Cart Screen"
+      - "Payment Screen"
+      - "Confirmation Screen"
