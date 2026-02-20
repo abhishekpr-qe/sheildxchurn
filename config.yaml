@@ -1,8 +1,4 @@
 redshift:
-  mcp_url: "http://internal-ecm-gateway-svc-464678860.eu-west-2.elb.amazonaws.com:80/mcp"
-  timeout_seconds: 180
-  retries: 3
-  retry_delay: 8.0
   schema: "dev.public"
 
 mixpanel:
@@ -11,7 +7,7 @@ mixpanel:
   timeout_seconds: 30
 
 export:
-  event_name: "$mp_web_page_view"
+  event_name: "Screen loaded"
   from_date: "2025-01-01"
   to_date: "2025-01-31"
 

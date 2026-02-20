@@ -1,124 +1,92 @@
 from __future__ import annotations
 
-import json
+from unittest.mock import MagicMock, patch
 
-import pandas as pd
 import pytest
 
-from churn.infra.redshift import _parse_result, _parse_sse, _parse_table
+from churn.infra.config import RedshiftSettings
+from churn.infra.redshift import RedshiftClient
 
 
-class TestParseResult:
-    def test_json_array(self):
-        raw = {
-            "result": {
-                "content": [
-                    {"type": "text", "text": json.dumps([
-                        {"user_id": "u1", "score": 10},
-                        {"user_id": "u2", "score": 20},
-                    ])}
-                ]
-            }
-        }
-        df = _parse_result(raw)
-        assert list(df.columns) == ["user_id", "score"]
-        assert len(df) == 2
-        assert df.iloc[0]["user_id"] == "u1"
-
-    def test_json_object_with_rows_key(self):
-        raw = {
-            "result": {
-                "content": [
-                    {"type": "text", "text": json.dumps({
-                        "rows": [{"id": "a"}, {"id": "b"}]
-                    })}
-                ]
-            }
-        }
-        df = _parse_result(raw)
-        assert len(df) == 2
-        assert list(df.columns) == ["id"]
-
-    def test_json_object_with_data_key(self):
-        raw = {
-            "result": {
-                "content": [
-                    {"type": "text", "text": json.dumps({
-                        "data": [{"x": 1}]
-                    })}
-                ]
-            }
-        }
-        df = _parse_result(raw)
-        assert len(df) == 1
-
-    def test_empty_content(self):
-        raw = {"result": {"content": []}}
-        df = _parse_result(raw)
-        assert df.empty
-
-    def test_plain_dict_fallback(self):
-        raw = {"rows": [{"col": "val"}]}
-        df = _parse_result(raw)
-        assert len(df) == 1
+@pytest.fixture
+def settings() -> RedshiftSettings:
+    return RedshiftSettings(
+        host="test-host",
+        port=5439,
+        user="test_user",
+        password="test_pass",
+        database="dev",
+        schema="public",
+    )
 
 
-class TestParseTable:
-    def test_pipe_delimited(self):
-        text = (
-            "| user_id | score |\n"
-            "|---------|-------|\n"
-            "| u1      | 10    |\n"
-            "| u2      | 20    |\n"
+@pytest.fixture
+def client(settings: RedshiftSettings) -> RedshiftClient:
+    return RedshiftClient(settings)
+
+
+class TestRedshiftClient:
+    @patch("churn.infra.redshift.redshift_connector")
+    def test_query_returns_columns_and_rows(self, mock_rc, client):
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("user_id",), ("score",)]
+        mock_cursor.fetchall.return_value = [("u1", 10), ("u2", 20)]
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_rc.connect.return_value = mock_conn
+
+        columns, rows = client.query("SELECT user_id, score FROM users")
+
+        assert columns == ["user_id", "score"]
+        assert rows == [("u1", 10), ("u2", 20)]
+        mock_conn.close.assert_called_once()
+
+    @patch("churn.infra.redshift.redshift_connector")
+    def test_query_empty_result(self, mock_rc, client):
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("cnt",)]
+        mock_cursor.fetchall.return_value = []
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_rc.connect.return_value = mock_conn
+
+        columns, rows = client.query("SELECT COUNT(*) AS cnt FROM empty_table")
+
+        assert columns == ["cnt"]
+        assert rows == []
+
+    @patch("churn.infra.redshift.redshift_connector")
+    def test_connection_closed_on_error(self, mock_rc, client):
+        mock_cursor = MagicMock()
+        mock_cursor.execute.side_effect = RuntimeError("query failed")
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_rc.connect.return_value = mock_conn
+
+        with pytest.raises(RuntimeError, match="query failed"):
+            client.query("BAD SQL")
+
+        mock_conn.close.assert_called_once()
+
+    @patch("churn.infra.redshift.redshift_connector")
+    def test_connect_uses_settings(self, mock_rc, settings):
+        client = RedshiftClient(settings)
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("x",)]
+        mock_cursor.fetchall.return_value = [(1,)]
+        mock_conn.cursor.return_value = mock_cursor
+        mock_rc.connect.return_value = mock_conn
+
+        client.query("SELECT 1")
+
+        mock_rc.connect.assert_called_once_with(
+            host="test-host",
+            port=5439,
+            user="test_user",
+            password="test_pass",
+            database="dev",
         )
-        df = _parse_table(text)
-        assert list(df.columns) == ["user_id", "score"]
-        assert len(df) == 2
-
-    def test_whitespace_delimited(self):
-        text = (
-            "user_id score\n"
-            "u1 10\n"
-            "u2 20\n"
-        )
-        df = _parse_table(text)
-        assert list(df.columns) == ["user_id", "score"]
-        assert len(df) == 2
-
-    def test_empty_input(self):
-        df = _parse_table("")
-        assert df.empty
-
-    def test_separator_only(self):
-        df = _parse_table("|---|---|\n|---|---|")
-        assert df.empty
-
-    def test_mismatched_columns_skipped(self):
-        text = (
-            "| a | b |\n"
-            "|---|---|\n"
-            "| 1 | 2 |\n"
-            "| 3 |\n"
-        )
-        df = _parse_table(text)
-        assert len(df) == 1
-
-
-class TestParseSse:
-    def test_extracts_last_json(self):
-        text = (
-            "data: {\"partial\": true}\n"
-            "data: {\"result\": {\"content\": [{\"text\": \"done\"}]}}\n"
-            "data: [DONE]\n"
-        )
-        result = _parse_sse(text)
-        assert result == {"result": {"content": [{"text": "done"}]}}
-
-    def test_skips_invalid_json(self):
-        text = "data: not-json\ndata: {\"ok\": true}\n"
-        result = _parse_sse(text)
-        assert result == {"ok": True}
-
-    def test_empty_stream(self):
-        result = _parse_sse("")
-        assert result == {}

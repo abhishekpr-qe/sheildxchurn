@@ -11,10 +11,11 @@ from churn.domain.models import FunnelConfig
 
 @dataclass(frozen=True)
 class RedshiftSettings:
-    mcp_url: str
-    timeout_seconds: int
-    retries: int
-    retry_delay: float
+    host: str
+    port: int
+    user: str
+    password: str
+    database: str
     schema: str
 
 
@@ -45,7 +46,10 @@ def load_config(config_path: str, secret_path: str) -> AppConfig:
     raw = _load_yaml(config_path)
     secret = _load_secret(secret_path)
 
-    rs = raw["redshift"]
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    rs = raw.get("redshift", {})
     mp = raw["mixpanel"]
     ex = raw["export"]
 
@@ -54,15 +58,14 @@ def load_config(config_path: str, secret_path: str) -> AppConfig:
         for name, f in raw.get("funnels", {}).items()
     )
 
-    mcp_url = os.environ.get("MCP_URL", rs["mcp_url"])
-
     return AppConfig(
         redshift=RedshiftSettings(
-            mcp_url=mcp_url,
-            timeout_seconds=rs["timeout_seconds"],
-            retries=rs["retries"],
-            retry_delay=rs["retry_delay"],
-            schema=rs["schema"],
+            host=os.environ.get("REDSHIFT_HOST", rs.get("host", "")),
+            port=int(os.environ.get("REDSHIFT_PORT", rs.get("port", 5439))),
+            user=os.environ.get("REDSHIFT_USER", rs.get("user", "")),
+            password=os.environ.get("REDSHIFT_PASSWORD", rs.get("password", "")),
+            database=os.environ.get("REDSHIFT_DATABASE", rs.get("database", "dev")),
+            schema=rs.get("schema", "public"),
         ),
         mixpanel=MixpanelSettings(
             base_url=mp["base_url"],
