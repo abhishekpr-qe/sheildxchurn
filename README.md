@@ -5,7 +5,7 @@
 [![Tests](https://img.shields.io/badge/tests-136%20passing-brightgreen)](#testing)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](#quick-start)
 [![Node](https://img.shields.io/badge/node-18+-green)](#quick-start)
-[![API](https://img.shields.io/badge/API-49%20endpoints-orange)](#api-endpoints)
+[![API](https://img.shields.io/badge/API-52%20endpoints-orange)](#api-endpoints)
 [![Model](https://img.shields.io/badge/model-AUC%200.941-purple)](#ml-pipeline)
 
 ---
@@ -140,7 +140,7 @@ make check
 
 ## API Endpoints
 
-**49 endpoints** across 8 categories. Full OpenAPI 3.0.3 spec at [`/api-docs`](http://localhost:3000/api-docs).
+**52 endpoints** across 8 categories. Full OpenAPI 3.0.3 spec at [`/api-docs`](http://localhost:3000/api-docs).
 
 ### Data & Model (10)
 | Method | Path | Description |
@@ -198,13 +198,16 @@ make check
 | GET | `/api/users/:id/dossier` | Full dossier: AI summary, LLM risk signals, nudge plan |
 | GET | `/api/executive` | Executive impact: total users, churn rate, revenue at risk |
 
-### Predictions & Feedback (4)
+### Predictions & Feedback (7)
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/predictions/write` | Batch write scored predictions (idempotent) |
 | POST | `/api/predictions/evaluate` | Evaluate 60-day outcomes |
 | GET | `/api/predictions/drift` | Model drift status + governance |
 | GET | `/api/predictions/cost` | LLM cost summary (per-tier breakdown) |
+| GET | `/api/predictions/analyze-rules` | Analyze rule effectiveness vs actual outcomes |
+| POST | `/api/predictions/propose-rules` | Generate rule change proposals (weights, thresholds, new rules) |
+| POST | `/api/predictions/apply-rules` | Apply proposals → git branch + commit + push + create PR (GR-009) |
 
 ### Utility (5)
 | Method | Path | Description |
@@ -290,43 +293,70 @@ Full specification: [SIGNALS.md](SIGNALS.md)
 
 ### Pipeline 1: Offline ML Training (Python)
 
+`train_model.py` produces ML scores that feed into `process_transactions.py` for final user scoring.
+
 ```
-┌──────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│  Mixpanel    │     │  Redshift (prod) │     │  Seed CSV           │
-│  Export API  │     │  analytics_      │     │  transactions_      │
-│  + Engage    │     │  orders_master   │     │  500k.csv           │
-└──────┬───────┘     └────────┬─────────┘     └──────────┬──────────┘
-       │                      │                           │
-       ▼                      ▼                           ▼
-┌──────────────┐     ┌────────────────┐        ┌─────────────────────┐
-│ extract_     │     │ train_model.py │        │ process_            │
-│ signals.py   │────▶│ (LightGBM +   │        │ transactions.py     │
-│ (43 features)│     │  XGBoost +     │        │ (risk scoring +     │
-│              │     │  CatBoost +    │        │  tier assignment)   │
-│              │     │  LogReg meta)  │        │                     │
-└──────────────┘     └───────┬────────┘        └──────────┬──────────┘
-                             │                            │
-                             ▼                            ▼
-                    ┌────────────────┐        ┌─────────────────────┐
-                    │ retrain.py     │        │ data/               │
-                    │ (drift report, │        │ ├─ real_transactions │
-                    │  AUC metrics,  │        │ │  .json (59K users,│
-                    │  z-scores)     │        │ │  cohorts, tiers)  │
-                    └────────────────┘        │ ├─ churn_dashboard_ │
-                                              │ │  data.json (model,│
-                                              │ │  SHAP, executive) │
-                                              │ └─ retrain_report   │
-                                              │    .json (drift)    │
-                                              └──────────┬──────────┘
-                                                         │
-                                                         ▼
-                                              ┌─────────────────────┐
-                                              │ cache.js            │
-                                              │ (startup: loads     │
-                                              │  JSON → userIndex → │
-                                              │  merges live data)  │
-                                              └─────────────────────┘
+┌──────────────┐     ┌──────────────────┐
+│  Mixpanel    │     │  Redshift (prod) │
+│  Export API  │     │  analytics_      │
+│  + Engage    │     │  orders_master   │
+└──────┬───────┘     └────────┬─────────┘
+       │                      │
+       ▼                      ▼
+┌──────────────┐     ┌────────────────┐
+│ extract_     │     │ train_model.py │
+│ signals.py   │────▶│ (LightGBM +   │
+│ (43 features)│     │  XGBoost +     │
+│              │     │  CatBoost +    │
+│              │     │  LogReg meta)  │
+└──────────────┘     └───────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+     │ model.pkl    │ │ model_user_  │ │ churn_dash-  │
+     │ (ensemble    │ │ scores.json  │ │ board_data   │
+     │  weights)    │ │ (per-user ML │ │ .json (model │
+     │              │ │  churn_prob  │ │  SHAP, exec) │
+     │ Used by:     │ │  + risk_tier)│ │              │
+     │ retrain.py   │ └──────┬───────┘ └──────┬───────┘
+     └──────────────┘        │                │
+                             ▼                │
+              ┌──────────────────────────┐    │
+              │ process_transactions.py  │    │
+              │                          │    │
+              │ Inputs:                  │    │
+              │ • transactions_500k.csv  │    │
+              │ • model_user_scores.json │    │
+              │                          │    │
+              │ Per-user: if ML score    │    │
+              │ exists → use it; else    │    │
+              │ heuristic fallback       │    │
+              └────────────┬─────────────┘    │
+                           │                  │
+                           ▼                  │
+              ┌──────────────────────────┐    │
+              │ data/                    │    │
+              │ ├─ real_transactions     │    │
+              │ │  .json (59K users,    │◀───┘
+              │ │  ML-scored, cohorts)  │
+              │ ├─ churn_dashboard_     │
+              │ │  data.json (metrics)  │
+              │ └─ retrain_report.json  │
+              └────────────┬─────────────┘
+                           │
+                           ▼
+              ┌──────────────────────────┐
+              │ cache.js                 │
+              │ (startup: loads JSONs →  │
+              │  userIndex → merges with │
+              │  live Redshift data)     │
+              └──────────────────────────┘
 ```
+
+> **Scoring precedence:** `process_transactions.py` loads `model_user_scores.json` (ML ensemble
+> predictions from `train_model.py`). Users with ML scores use ensemble churn_probability;
+> users not in the model output fall back to heuristic `compute_risk_score()` from domain layer.
 
 ### Pipeline 2: Online Tiered Scoring (Node.js, per-request)
 
@@ -465,6 +495,30 @@ Full specification: [SIGNALS.md](SIGNALS.md)
    │  │                                                           │          │
    │  │ Breakdown by: tier (T2/T5/T6), model, calls, tokens, $   │          │
    │  └──────────────────────────────────────────────────────────┘          │
+   │                                                                         │
+   │  ⑤ RULE EVOLUTION (human-in-the-loop) — server/services/rule-evolution.js │
+   │                                                                         │
+   │  GET /analyze-rules         POST /propose-rules      POST /apply-rules  │
+   │         │                         │                         │           │
+   │         ▼                         ▼                         ▼           │
+   │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────────┐  │
+   │  │ Query local   │    │ Compare rules vs │    │ Git workflow:        │  │
+   │  │ PG for eval'd │───▶│ outcomes:        │───▶│                      │  │
+   │  │ predictions   │    │                  │    │ 1. Branch: feat/     │  │
+   │  │               │    │ • Per-rule       │    │    rules-v{N}        │  │
+   │  │ Per-rule:     │    │   precision      │    │ 2. Apply changes to  │  │
+   │  │ • fired count │    │ • Weak rules     │    │    rules.yaml        │  │
+   │  │ • correct     │    │   (prec < 0.3)   │    │ 3. Commit + push     │  │
+   │  │   churns      │    │   → reduce weight│    │ 4. Create PR via     │  │
+   │  │ • false       │    │ • Strong rules   │    │    GitHub REST API   │  │
+   │  │   positives   │    │   (prec > 0.7)   │    │    (GITHUB_TOKEN)    │  │
+   │  │ • precision   │    │   → boost weight │    │ 5. Human reviews     │  │
+   │  │               │    │ • Missed churns  │    │    and merges         │  │
+   │  │ Per-tier:     │    │   → lower thresh │    │    (GR-009: never    │  │
+   │  │ • accuracy    │    │ • New rules for  │    │    auto-merge)       │  │
+   │  │ • churn rate  │    │   undetected     │    │ 6. On merge: new     │  │
+   │  │               │    │   patterns       │    │    rule_version hash │  │
+   │  └──────────────┘    └──────────────────┘    └──────────────────────┘  │
    └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -593,6 +647,7 @@ sheildxchurn/
 │   │   ├── gemini.js             # T5 Gemini Flash risk enrichment via OpenRouter
 │   │   ├── llm-cost.js           # LLM cost tracking per tier (local PG)
 │   │   ├── drift.js              # Model drift detection + governance
+│   │   ├── rule-evolution.js     # Rule analysis, proposals, and PR creation
 │   │   └── mixpanel.js           # Mixpanel funnel queries
 │   ├── lib/                      # Utilities
 │   │   ├── logger.js             # Structured JSON logging with request correlation

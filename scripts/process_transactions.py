@@ -17,6 +17,7 @@ from src.churn.domain.constants import CORRIDOR_MAP, INTERVENTIONS
 from src.churn.domain.risk import classify_risk_tier, compute_risk_score
 
 TXN_PATH = os.path.join(BASE_DIR, 'data', 'transactions_500k.csv')
+MODEL_SCORES_PATH = os.path.join(BASE_DIR, 'data', 'model_user_scores.json')
 OUTPUT_PATH = os.path.join(BASE_DIR, 'data', 'real_transactions.json')
 COMPLETED_STATUSES = {'COMPLETED'}
 FAILED_STATUSES = {'FAILED'}
@@ -43,8 +44,25 @@ def parse_amount(s):
         return 0
 
 
+def load_model_scores():
+    """Load ML ensemble scores from train_model.py output (if available)."""
+    if not os.path.exists(MODEL_SCORES_PATH):
+        return {}
+    try:
+        with open(MODEL_SCORES_PATH, 'r') as f:
+            scores = json.load(f)
+        print(f'[Model Scores] Loaded {len(scores):,} ML scores from {MODEL_SCORES_PATH}')
+        return scores
+    except (json.JSONDecodeError, OSError) as e:
+        print(f'[Model Scores] Failed to load: {e} — falling back to heuristic scoring')
+        return {}
+
+
 def main():
     print(f'[Transactions] Loading {TXN_PATH}...')
+
+    # Load ML scores from train_model.py (empty dict if not available)
+    model_scores = load_model_scores()
 
     # Read all transactions
     users = defaultdict(list)
@@ -127,14 +145,19 @@ def main():
         if slow_deliveries >= 2:
             signals.append({'code': 'repeated_slow_delivery', 'description': f'{slow_deliveries} slow deliveries'})
 
-        # Risk scoring from domain layer
-        risk_score = compute_risk_score(
-            signal_count=len(signals),
-            fail_rate=fail_rate,
-            days_since_last=days_since_last,
-            stuck_rate=stuck_rate,
-        )
-        risk_tier = classify_risk_tier(risk_score)
+        # Risk scoring: ML ensemble if available, heuristic fallback
+        ml = model_scores.get(uid)
+        if ml:
+            risk_score = ml['churn_probability']
+            risk_tier = ml['risk_tier']
+        else:
+            risk_score = compute_risk_score(
+                signal_count=len(signals),
+                fail_rate=fail_rate,
+                days_since_last=days_since_last,
+                stuck_rate=stuck_rate,
+            )
+            risk_tier = classify_risk_tier(risk_score)
 
         # Intervention type
         if fail_rate > 0.15:
@@ -229,7 +252,11 @@ def main():
 
     # Sort by risk
     user_metrics.sort(key=lambda u: -u['risk_score'])
+    ml_count = len([u for u in user_metrics if model_scores.get(u['user_id'])])
+    heuristic_count = len(user_metrics) - ml_count
     print(f'  Computed metrics for {len(user_metrics):,} users')
+    if model_scores:
+        print(f'  Scoring: {ml_count:,} ML ensemble, {heuristic_count:,} heuristic fallback')
 
     # ══════════════════════════════════════════════════════════════════════
     # COHORT CLASSIFICATION (Industry-Standard Remittance Cohorts)
@@ -594,9 +621,11 @@ def main():
         'source': 'real_transactions',
         'data_range': f'{min(all_dates).strftime("%Y-%m-%d")} to {now.strftime("%Y-%m-%d")}',
         'model': {
-            'type': 'Rule-based (Real Data)',
+            'type': 'Ensemble (LightGBM + XGBoost + CatBoost)' if model_scores else 'Rule-based (Real Data)',
             'train_samples': total_rows,
-            'features_used': 12,
+            'features_used': 43 if model_scores else 12,
+            'ml_scored_users': len([u for u in user_metrics if model_scores.get(u['user_id'])]),
+            'heuristic_scored_users': len([u for u in user_metrics if not model_scores.get(u['user_id'])]),
             'metrics': {
                 'train': {'auc': 'N/A', 'precision': 'N/A', 'recall': 'N/A'},
                 'validation': {'auc': 'N/A', 'precision': 'N/A', 'recall': 'N/A'},

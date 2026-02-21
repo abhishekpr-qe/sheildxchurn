@@ -1625,6 +1625,18 @@ def generate_dashboard_json(df, predictions, metrics, model_info, output_dir):
     with open(output_path, 'w') as f:
         json.dump(dashboard, f, indent=2, default=str)
 
+    # Export per-user ML scores for downstream pipeline (process_transactions.py)
+    scores = {}
+    for _, row in df.iterrows():
+        scores[row['user_id']] = {
+            'churn_probability': round(float(row['churn_probability']), 4),
+            'risk_tier': row['risk_tier'],
+        }
+    scores_path = os.path.join(output_dir, 'model_user_scores.json')
+    with open(scores_path, 'w') as f:
+        json.dump(scores, f)
+    print(f'[Scores] Exported {len(scores)} user scores to {scores_path}')
+
     print(f'[Dashboard] Wrote {output_path}')
     print(f'  Total users: {len(df)}')
     print(f'  At-risk: {len(at_risk_users)}, Churned: {len(churned_sample)}, Healthy: {len(healthy_sample)}')

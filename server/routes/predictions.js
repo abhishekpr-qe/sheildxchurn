@@ -2,6 +2,7 @@ const { writePredictions, evaluatePredictions } = require('../services/redshift'
 const { getRuleVersion } = require('../services/rules');
 const { getCostSummary } = require('../services/llm-cost');
 const { checkDrift } = require('../services/drift');
+const { analyzeRules, proposeRuleChanges, applyAndCreatePR } = require('../services/rule-evolution');
 const { createLogger } = require('../lib/logger');
 const log = createLogger('predictions');
 
@@ -50,6 +51,43 @@ module.exports = function(app) {
       res.json(summary);
     } catch (e) {
       res.status(500).json({ error: 'Cost query failed', detail: e.message });
+    }
+  });
+
+  // GET /api/predictions/analyze-rules — Analyze rule effectiveness against outcomes
+  app.get('/api/predictions/analyze-rules', async (req, res) => {
+    try {
+      const result = await analyzeRules();
+      res.json(result);
+    } catch (e) {
+      log.error('Rule analysis error', { error: e.message });
+      res.status(500).json({ error: 'Analysis failed', detail: e.message });
+    }
+  });
+
+  // POST /api/predictions/propose-rules — Generate rule change proposals
+  app.post('/api/predictions/propose-rules', async (req, res) => {
+    try {
+      const result = await proposeRuleChanges();
+      res.json(result);
+    } catch (e) {
+      log.error('Rule proposal error', { error: e.message });
+      res.status(500).json({ error: 'Proposal failed', detail: e.message });
+    }
+  });
+
+  // POST /api/predictions/apply-rules — Apply proposals and create PR (GR-009: human review)
+  app.post('/api/predictions/apply-rules', async (req, res) => {
+    const { proposals } = req.body;
+    if (!Array.isArray(proposals) || !proposals.length) {
+      return res.status(400).json({ error: 'proposals array required (from POST /propose-rules)' });
+    }
+    try {
+      const result = await applyAndCreatePR(proposals);
+      res.json(result);
+    } catch (e) {
+      log.error('Rule apply error', { error: e.message });
+      res.status(500).json({ error: 'Apply failed', detail: e.message });
     }
   });
 

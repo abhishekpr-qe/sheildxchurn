@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-const { QUERIES, DDL_LLM_USAGE_TABLE_PG, DDL_ADD_RULE_VERSION } = require('../../queries');
+const { QUERIES, DDL_LLM_USAGE_TABLE_PG, DDL_ADD_RULE_VERSION, DDL_ADD_TOP_REASONS } = require('../../queries');
 const { liveData } = require('./cache');
 const { createLogger } = require('../lib/logger');
 const log = createLogger('redshift');
@@ -82,8 +82,9 @@ async function initPredictionsTable() {
   }
   const client = await localPgPool.connect();
   try {
-    // Predictions table already exists; ensure rule_version column is present
+    // Predictions table already exists; ensure rule_version + top_reasons columns are present
     await client.query(DDL_ADD_RULE_VERSION);
+    await client.query(DDL_ADD_TOP_REASONS);
     log.info('Predictions table ready');
   } catch (e) {
     log.warn('Predictions table DDL', { error: e.message.slice(0, 120) });
@@ -120,17 +121,18 @@ async function writePredictions(predictions, modelVersion, ruleVersion) {
          WHERE user_id IN (${userIds}) AND model_version = '${modelVersion}'`
       );
 
-      const values = batch.map(p =>
-        `('${p.user_id}', NOW(), '${p.risk_tier || ''}', ${p.churn_probability || 0}, ` +
-        `${p.risk_score || 0}, '${modelVersion}', '${ruleVersion || ''}', ` +
-        `'${p.corridor || ''}', ${p.days_since_last || 0}, ${p.total_txns || 0}, ` +
-        `'${p.intervention_type || ''}')`
-      ).join(',\n');
+      const values = batch.map(p => {
+        const reasons = (p.top_reasons || '').replace(/'/g, "''");
+        return `('${p.user_id}', NOW(), '${p.risk_tier || ''}', ${p.churn_probability || 0}, ` +
+          `${p.risk_score || 0}, '${modelVersion}', '${ruleVersion || ''}', ` +
+          `'${p.corridor || ''}', ${p.days_since_last || 0}, ${p.total_txns || 0}, ` +
+          `'${p.intervention_type || ''}', '${reasons}')`;
+      }).join(',\n');
 
       await client.query(
         `INSERT INTO churn_predictions
          (user_id, predicted_at, risk_tier, churn_probability, risk_score,
-          model_version, rule_version, corridor, days_since_last, total_txns, intervention_type)
+          model_version, rule_version, corridor, days_since_last, total_txns, intervention_type, top_reasons)
          VALUES ${values}`
       );
 

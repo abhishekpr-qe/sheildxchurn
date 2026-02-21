@@ -1239,6 +1239,94 @@ paths:
                   timestamp:
                     type: string
 
+  /api/predictions/analyze-rules:
+    get:
+      tags: [Predictions]
+      summary: Analyze rule effectiveness against actual outcomes
+      operationId: analyzeRules
+      responses:
+        '200':
+          description: Per-rule precision, missed churns, false alarms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evaluated:
+                    type: integer
+                  missed_churns:
+                    type: integer
+                  false_alarms:
+                    type: integer
+                  rule_analysis:
+                    type: array
+                    items:
+                      type: object
+                  tier_accuracy:
+                    type: array
+                    items:
+                      type: object
+
+  /api/predictions/propose-rules:
+    post:
+      tags: [Predictions]
+      summary: Generate rule change proposals based on outcome analysis
+      operationId: proposeRules
+      responses:
+        '200':
+          description: Rule change proposals with analysis summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  analysis_summary:
+                    type: object
+                  proposals:
+                    type: array
+                    items:
+                      type: object
+                  current_version:
+                    type: string
+
+  /api/predictions/apply-rules:
+    post:
+      tags: [Predictions]
+      summary: Apply rule proposals and create PR (GR-009 human review)
+      operationId: applyRules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proposals]
+              properties:
+                proposals:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: PR created with rule changes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applied:
+                    type: integer
+                  version:
+                    type: string
+                  branch:
+                    type: string
+                  changes:
+                    type: array
+                    items:
+                      type: string
+                  pr_url:
+                    type: string
+
 components:
   parameters:
     UserId:
