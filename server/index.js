@@ -42,6 +42,7 @@ function createApp() {
   require('./routes/dossier')(app);
   require('./routes/campaigns')(app);
   require('./routes/ai')(app);
+  require('./routes/plotline')(app);
 
   app.get('/healthz', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 

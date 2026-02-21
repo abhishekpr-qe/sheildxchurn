@@ -441,28 +441,129 @@ module.exports = function(app) {
     const user = userIndex[user_id];
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (!CFG.RETELL_API_KEY || !CFG.RETELL_AGENT_ID) {
-      const intervention = user.intervention || getIntervention(user);
-      return res.json({ mock: true, message: `[DEMO] Would call ${phone || 'user phone'} for ${user_id}`, user_id, phone: phone || '+1-XXX-XXX-XXXX', agent_context: { risk_tier: user.risk_tier, churn_probability: user.churn_probability || user.risk_score, primary_reason: user.reasons?.[0]?.description || 'inactivity', intervention: intervention.type }, status: 'queued' });
+    // Check cooldown for AI calls
+    const existing = getCooldown(`call_${user_id}`);
+    if (existing) {
+      const remaining = (new Date(existing.cooldown_until) - new Date()) / (1000 * 60 * 60);
+      return res.status(429).json({
+        cooldown_active: true,
+        remaining_hours: Math.round(remaining * 10) / 10,
+        message: `AI Call on cooldown. Available in ${Math.ceil(remaining)}h.`
+      });
     }
+
+    const intervention = user.intervention || getIntervention(user);
+    const fromNumber = '+16812411176';
+    // Ignore placeholder/invalid phone numbers, use test number
+    const isValidPhone = phone && !/^(\+1-?)?0{3}/.test(phone) && phone.length >= 10;
+    const toNumber = isValidPhone ? phone : '+919431575153'; // Default test number
+
+    if (!CFG.RETELL_API_KEY) {
+      return res.json({ mock: true, message: `[DEMO] Would call ${toNumber} for ${user_id}`, user_id, from_number: fromNumber, to_number: toNumber, status: 'queued' });
+    }
+
     try {
-      const intervention = user.intervention || getIntervention(user);
+      const customerName = user.user_id || 'Customer';
+      const retellPayload = {
+        from_number: fromNumber,
+        to_number: toNumber,
+        agent_override: {
+          agent: {
+            response_engine: {
+              type: "retell-llm",
+              llm_id: "llm_ad9bf944c05ebbb02d5be19d5a2c",
+              version: 0
+            },
+            agent_name: "Jarvis",
+            voice_id: "11labs-Adrian",
+            voice_model: "eleven_turbo_v2",
+            voice_temperature: 1,
+            voice_speed: 1,
+            volume: 1,
+            responsiveness: 1,
+            interruption_sensitivity: 1,
+            enable_backchannel: true,
+            backchannel_frequency: 0.9,
+            reminder_trigger_ms: 10000,
+            reminder_max_count: 2,
+            language: "en-US",
+            end_call_after_silence_ms: 600000,
+            max_call_duration_ms: 3600000,
+            enable_voicemail_detection: true,
+            voicemail_message: "Hi, this is Vance support. Please give us a callback.",
+            voicemail_detection_timeout_ms: 30000
+          },
+          retell_llm: {
+            model: "gpt-4.1",
+            model_temperature: 0,
+            begin_message: `Hey ${customerName}, I am Jarvis, a virtual assistant calling from Vance. I noticed you haven't used our service recently and wanted to check if everything is okay. Is there anything I can help you with today?`
+          }
+        },
+        metadata: {
+          user_id: user_id,
+          risk_tier: user.risk_tier,
+          corridor: user.corridor,
+          churn_probability: user.churn_probability || user.risk_score
+        },
+        retell_llm_dynamic_variables: {
+          customer_name: customerName,
+          risk_tier: user.risk_tier,
+          corridor: user.corridor || 'Unknown',
+          intervention_type: intervention.type
+        },
+        ignore_e164_validation: true
+      };
+
       const resp = await fetch('https://api.retellai.com/v2/create-phone-call', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.RETELL_API_KEY}` },
-        body: JSON.stringify({ agent_id: CFG.RETELL_AGENT_ID, customer_number: phone, agent_prompt_params: { user_name: user_id, corridor: user.corridor, risk_tier: user.risk_tier, churn_probability: ((user.churn_probability || user.risk_score) * 100).toFixed(0) + '%', primary_reason: user.reasons?.[0]?.description || 'inactivity', intervention_type: intervention.type, intervention_message: intervention.message, tenure_days: String(user.tenure_days), total_txns: String(user.total_txns) } }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CFG.RETELL_API_KEY}`
+        },
+        body: JSON.stringify(retellPayload)
       });
       const result = await resp.json();
 
-      // S3 audit trail — call record
+      if (!resp.ok) {
+        log.error('Retell API error', { status: resp.status, result });
+        return res.status(resp.status).json({ error: 'Retell API error', detail: result });
+      }
+
+      // Set cooldown for this user's AI call (7 days)
+      await setCooldown(`call_${user_id}`, {
+        action_type: 'ai_call',
+        channel: 'phone',
+        cohort: user.cohort || null,
+        campaign_id: result.call_id,
+        source: 'retell_ai',
+        corridor: user.corridor,
+        risk_tier: user.risk_tier,
+        churn_probability: user.churn_probability || user.risk_score,
+      }, { reqId: req.id });
+
+      // Log intervention
+      interventionLog.push({
+        id: `CALL_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        user_id,
+        channel: 'phone',
+        campaign: result.call_id,
+        risk_tier: user.risk_tier,
+        churn_probability: user.churn_probability || user.risk_score,
+        triggered_at: new Date().toISOString(),
+        status: 'sent',
+        outcome: null,
+        source: 'retell_ai'
+      });
+
+      // S3 audit trail
       const now = new Date();
       const dateKey = now.toISOString().split('T')[0];
-      const campaignId = crypto.randomUUID();
       const riskData = riskAnalysisCache[user_id] || null;
       const s3Record = {
-        campaign_id: campaignId, triggered_at: now.toISOString(), triggered_by: 'dashboard',
+        campaign_id: result.call_id, triggered_at: now.toISOString(), triggered_by: 'dashboard',
         tier: user.risk_tier, channel_used: 'Retell.ai', llm_analysis_included: !!riskData,
         total_targeted: 1,
+        from_number: fromNumber, to_number: toNumber,
         users: [{
           user_id, corridor: user.corridor, risk_tier: user.risk_tier,
           churn_probability: user.churn_probability || user.risk_score,
@@ -470,14 +571,23 @@ module.exports = function(app) {
           sent_at: now.toISOString(), intervention_type: intervention.type,
           intervention_message: intervention.message,
           llm_risk_signals: riskData?.risk_signals || null, llm_justification: riskData?.justification || null,
-          status: 'sent', retell_response: result,
+          status: result.call_status, retell_response: result,
         }],
       };
-      const s3Result = await writeToS3(`campaigns/${dateKey}/${campaignId}.json`, s3Record, { reqId: req.id });
+      const s3Result = await writeToS3(`campaigns/${dateKey}/${result.call_id}.json`, s3Record, { reqId: req.id });
       campaignLog.push({ ...s3Record, s3: s3Result });
 
-      res.json({ status: 'call_initiated', call_id: result.call_id, user_id, result, s3: s3Result });
+      res.json({
+        status: 'call_initiated',
+        call_id: result.call_id,
+        call_status: result.call_status,
+        from_number: result.from_number,
+        to_number: result.to_number,
+        user_id,
+        s3: s3Result
+      });
     } catch (e) {
+      log.error('Retell call error', { error: e.message });
       res.status(500).json({ error: 'Voice call failed', detail: e.message });
     }
   });

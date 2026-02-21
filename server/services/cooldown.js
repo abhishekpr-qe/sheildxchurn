@@ -172,6 +172,7 @@ if (pgPool) {
 }
 
 module.exports = {
+  COOLDOWN_HOURS,
   initCooldownTable,
   loadCooldownsFromDB,
   getCooldown,

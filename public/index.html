@@ -57,6 +57,8 @@ input:focus,select:focus{border-color:#6366F1}
 .push-modal input:focus,.push-modal textarea:focus{border-color:#6366F1}
 .push-modal textarea{resize:vertical;min-height:60px}
 .push-modal-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+td:hover .exec-tooltip{display:block!important}
+.exec-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#334155}
 </style></head><body>
 <div class="hdr"><div style="display:flex;align-items:center;gap:14px"><div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#6366F1,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;box-shadow:0 4px 12px #6366F140">A</div><div><div style="font-size:17px;font-weight:800;letter-spacing:-.3px">Churn Intelligence</div><div id="hsub" style="font-size:10px;color:#475569;letter-spacing:.3px"></div></div></div><div style="display:flex;align-items:center;gap:8px"><span class="live-pulse" style="width:8px;height:8px;background:#10B981;border-radius:50%;box-shadow:0 0 8px #10B98180;display:inline-block"></span><span style="font-size:11px;color:#10B981;font-weight:700;letter-spacing:.5px">LIVE</span></div></div>
 <div class="tabs" id="tabs"></div>
@@ -616,8 +618,8 @@ function rendCohorts(){
     h+='<div class="cd" style="background:#10B98106;border-color:#10B98120">';
     h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:800;color:#10B981">Winback Playbook</div><div class="sh-badge" style="background:#10B98115;color:#10B981">AI Generated</div></div>';
     h+='<div style="font-size:13px;font-weight:600;margin-bottom:8px">Goal: '+s.goal+'</div>';
-    h+='<table><thead><tr><th>Action</th><th>Channel</th><th>Timing</th><th>Lift</th><th>Cost</th></tr></thead><tbody>';
-    s.actions.forEach(function(a){h+='<tr><td style="font-size:12px;max-width:280px">'+a.action+'</td><td><span style="font-size:10px;background:#1e293b;padding:3px 8px;border-radius:4px">'+a.channel+'</span></td><td class="dim" style="font-size:11px">'+a.timing+'</td><td style="color:#10B981;font-weight:700">'+a.expected_lift+'</td><td class="mono">$'+a.cost_per_user.toFixed(2)+'</td></tr>'});
+    h+='<table><thead><tr><th>Action</th><th>Channel</th><th>Timing</th><th>Lift</th><th>Cost</th><th style="text-align:center">Execute</th></tr></thead><tbody>';
+    s.actions.forEach(function(a,idx){var actionId=c.key+'_'+idx;h+='<tr><td style="font-size:12px;max-width:280px">'+a.action+'</td><td><span style="font-size:10px;background:#1e293b;padding:3px 8px;border-radius:4px">'+a.channel+'</span></td><td class="dim" style="font-size:11px">'+a.timing+'</td><td style="color:#10B981;font-weight:700">'+a.expected_lift+'</td><td class="mono">$'+a.cost_per_user.toFixed(2)+'</td><td style="text-align:center;position:relative"><button id="exec_'+actionId+'" class="btn btn-sm btn-primary" style="padding:4px 12px;position:relative" onclick="event.stopPropagation();executePlaybook(\''+c.key+'\','+idx+',\''+a.action.replace(/'/g,"\\'")+'\',\''+a.channel+'\')" title="Send Push Notification + Create Plotline Segment"><span class="exec-text">Launch</span></button><div class="exec-tooltip" style="display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 12px;font-size:10px;width:180px;z-index:100;margin-bottom:6px;text-align:left"><b style="color:#a78bfa">On click:</b><br>1. Send Push via MoEngage<br>2. Create Plotline Segment<br>3. Set 7-day cooldown</div></td></tr>'});
     h+='</tbody></table>';
     h+='<div style="margin-top:10px;padding:10px;background:#EF444408;border:1px solid #EF444418;border-radius:8px"><span style="font-size:10px;font-weight:700;color:#EF4444">RISK IF IGNORED: </span><span style="font-size:11px;color:#f87171">'+s.risk_if_ignored+'</span></div>';
     h+='</div>';
@@ -762,13 +764,16 @@ function _opnUser(u){
   d+='<button class="btn btn-primary btn-sm" onclick="sendEngage(\''+u.user_id+'\',\'push\')">Push</button>';
   d+='<button class="btn btn-success btn-sm" onclick="sendEngage(\''+u.user_id+'\',\'email\')">Email</button>';
   d+='<button class="btn btn-warning btn-sm" onclick="sendEngage(\''+u.user_id+'\',\'sms\')">SMS</button>';
-  d+='<button class="btn btn-danger btn-sm" onclick="triggerCall(\''+u.user_id+'\')">AI Call</button>';
+  d+='<button id="aicall_'+u.user_id+'" class="btn btn-danger btn-sm" onclick="triggerCall(\''+u.user_id+'\')" title="Initiate AI-powered phone call via Retell"><span class="aicall-text">AI Call</span></button>';
   d+='<button class="btn btn-outline btn-sm" style="border-color:#a78bfa;color:#a78bfa" onclick="runRiskAnalysis(\''+u.user_id+'\')">AI Risk Analysis</button>';
   d+='<button class="btn btn-outline btn-sm" onclick="viewDossier(\''+u.user_id+'\')">Full Dossier</button>';
   d+='</div><div id="action-status" class="mut" style="font-size:10px;margin-top:6px"></div></div>';
   d+='<div id="llm-risk-panel" style="display:none" class="cd" style="margin-bottom:12px"></div>';
 
   document.getElementById('dr').innerHTML=d;document.getElementById('dr').classList.add('show');document.getElementById('ov').classList.add('show');
+
+  // Check AI Call cooldown
+  checkAICallCooldown(id);
 
   // Load sentiment
   fetch((window.API_BASE||'')+'/api/users/'+id+'/sentiment').then(function(r){return r.json()}).then(function(s){
@@ -806,9 +811,119 @@ function openPushModal(ctx){_pushCtx=ctx;document.getElementById('pushTitle').va
 function closePushModal(){_pushCtx=null;document.getElementById('pushOv').classList.remove('show')}
 function submitPush(){var t=document.getElementById('pushTitle').value.trim();var m=document.getElementById('pushMsg').value.trim();var img=document.getElementById('pushImg').value.trim();if(!m){showToast('Message is required','error');return;}var ctx=_pushCtx;closePushModal();if(!ctx)return;if(ctx.mode==='single'){var statusEl=document.getElementById('action-status');if(statusEl)statusEl.textContent='Sending push...';fetch((window.API_BASE||'')+'/api/moengage/engage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:ctx.userId,channel:'push',title:t,message:m,richImage:img||undefined})}).then(function(r){return r.json()}).then(function(d){showToast((d.mock?'[Demo] ':'')+'Push Notification sent','success');if(statusEl)statusEl.innerHTML='<span style="color:#10B981">Sent</span>'}).catch(function(){showToast('Push failed','error')})}else if(ctx.mode==='bulk'){showToast('Launching '+ctx.tier+' push campaign...','info');fetch((window.API_BASE||'')+'/api/moengage/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tier:ctx.tier,max_count:ctx.maxCount,channel:'push',title:t,message:m,richImage:img||undefined})}).then(function(r){return r.json()}).then(function(d){showToast((d.mock?'[Demo] ':'')+'Push Campaign sent to '+d.targeted+' users','success');setTimeout(function(){if(T==='command')rend()},500)}).catch(function(){showToast('Campaign failed','error')})}}
 function sendEngage(userId,channel){if(channel==='push'){openPushModal({userId:userId,mode:'single'});return;}var statusEl=document.getElementById('action-status');if(statusEl)statusEl.textContent='Sending '+channel+'...';fetch((window.API_BASE||'')+'/api/moengage/engage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,channel:channel})}).then(function(r){return r.json()}).then(function(d){showToast((d.mock?'[Demo] ':'')+'Sent '+channel+(d.s3?' | S3: '+(d.s3.success?'saved':'mock'):''),'success');if(statusEl)statusEl.innerHTML='<span style="color:#10B981">Sent</span>'}).catch(function(){showToast('Failed','error')})}
-function triggerCall(userId){fetch((window.API_BASE||'')+'/api/retell/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,phone:'+1-000-000-0000'})}).then(function(r){return r.json()}).then(function(d){showToast((d.mock?'[Demo] ':'')+'AI call queued'+(d.s3?' | S3: '+(d.s3.success?'saved':'mock'):''),'success')}).catch(function(){showToast('Call failed','error')})}
+function triggerCall(userId){
+  var btn=document.getElementById('aicall_'+userId);
+  var textEl=btn?btn.querySelector('.aicall-text'):null;
+  if(btn){btn.disabled=true;if(textEl)textEl.textContent='Calling...';}
+
+  fetch((window.API_BASE||'')+'/api/retell/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId})})
+  .then(function(r){
+    if(r.status===429){
+      return r.json().then(function(d){
+        var hrs=d.remaining_hours||0;
+        var days=Math.ceil(hrs/24);
+        showToast('AI Call on cooldown. Available in '+days+'d','warning');
+        if(btn){btn.disabled=true;btn.style.opacity='0.6';if(textEl)textEl.textContent='Done ('+days+'d)';}
+        throw new Error('cooldown');
+      });
+    }
+    return r.json();
+  })
+  .then(function(d){
+    showToast((d.mock?'[Demo] ':'')+'AI call initiated'+(d.call_id?' | Call ID: '+d.call_id.slice(0,8):''),'success');
+    if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.background='#10B981';if(textEl)textEl.textContent='Done (7d)';}
+  })
+  .catch(function(e){
+    if(e.message!=='cooldown'){
+      showToast('Call failed','error');
+      if(btn){btn.disabled=false;if(textEl)textEl.textContent='AI Call';}
+    }
+  });
+}
+function checkAICallCooldown(userId){
+  fetch((window.API_BASE||'')+'/api/cooldown/call_'+userId).then(function(r){return r.json()}).then(function(d){
+    if(d.active){
+      var btn=document.getElementById('aicall_'+userId);
+      var textEl=btn?btn.querySelector('.aicall-text'):null;
+      var days=Math.ceil(d.remaining_hours/24);
+      if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.background='#10B981';if(textEl)textEl.textContent='Done ('+days+'d)';}
+    }
+  }).catch(function(){});
+}
 function launchCampaign(tier,count){openPushModal({tier:tier,maxCount:Math.min(count,100),mode:'bulk'})}
 function analyzeLaunch(tier,count){openPushModal({tier:tier,maxCount:Math.min(count,100),mode:'bulk'})}
+// Execute Playbook Action: MoEngage Push + Plotline Segment
+function executePlaybook(cohortKey,actionIdx,actionName,channel){
+  var btnId='exec_'+cohortKey+'_'+actionIdx;
+  var btn=document.getElementById(btnId);
+  if(!btn)return;
+
+  // Disable and show loading
+  btn.disabled=true;
+  btn.querySelector('.exec-text').textContent='...';
+  btn.style.opacity='0.7';
+
+  showToast('Executing: Push + Segment...','info');
+
+  fetch((window.API_BASE||'')+'/api/playbook/execute',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      cohort_key:cohortKey,
+      action_index:actionIdx,
+      action_name:actionName,
+      channel:channel
+    })
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      var cdDays=Math.ceil(d.cooldown_hours/24);
+      showToast('Sent to '+d.users_targeted+' users | Segment: '+d.segment_name,'success');
+      // Mark as executed with cooldown
+      btn.querySelector('.exec-text').textContent='Done ('+cdDays+'d)';
+      btn.style.background='#10B981';
+      btn.style.borderColor='#10B981';
+      btn.style.opacity='1';
+      btn.title='Executed. Available again in '+cdDays+' days.';
+    }else if(d.error==='Action on cooldown'){
+      var remDays=Math.ceil(d.remaining_hours/24);
+      var remLabel=d.remaining_hours>=24?remDays+'d':d.remaining_hours+'h';
+      showToast('On cooldown - available in '+remLabel,'warning');
+      btn.querySelector('.exec-text').textContent=remLabel;
+      btn.style.background='#475569';
+      btn.style.borderColor='#475569';
+      btn.style.opacity='1';
+      btn.title='On cooldown until '+new Date(d.cooldown_until).toLocaleString();
+    }else{
+      showToast('Failed: '+(d.error||d.message||'Unknown error'),'error');
+      btn.disabled=false;
+      btn.querySelector('.exec-text').textContent='Launch';
+      btn.style.opacity='1';
+    }
+  }).catch(function(e){
+    showToast('Execution failed','error');
+    btn.disabled=false;
+    btn.querySelector('.exec-text').textContent='Launch';
+    btn.style.opacity='1';
+  });
+}
+
+// Check action cooldowns on page load
+function checkPlaybookCooldowns(){
+  fetch((window.API_BASE||'')+'/api/playbook/cooldowns').then(function(r){return r.json()}).then(function(d){
+    (d.cooldowns||[]).forEach(function(c){
+      var btn=document.getElementById('exec_'+c.cohort_key+'_'+c.action_index);
+      if(btn){
+        var remDays=Math.ceil(c.remaining_hours/24);
+        var remLabel=c.remaining_hours>=24?remDays+'d':c.remaining_hours+'h';
+        btn.disabled=true;
+        btn.querySelector('.exec-text').textContent=remLabel;
+        btn.style.background='#475569';
+        btn.style.borderColor='#475569';
+        btn.title='On cooldown until '+new Date(c.cooldown_until).toLocaleString();
+      }
+    });
+  }).catch(function(){});
+}
 function runRiskAnalysis(userId){var panel=document.getElementById('llm-risk-panel');var statusEl=document.getElementById('action-status');if(statusEl)statusEl.textContent='Running AI risk analysis...';if(panel){panel.style.display='block';panel.innerHTML='<div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:6px">AI RISK ANALYSIS</div><div class="mut" style="font-size:11px">Analyzing risk signals...</div>';}fetch((window.API_BASE||'')+'/api/ai/risk-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId})}).then(function(r){return r.json()}).then(function(d){if(statusEl)statusEl.innerHTML='<span style="color:#a78bfa">Analysis complete</span>';var a=d.analyses[userId];if(!a||a.error){if(panel)panel.innerHTML='<div style="color:#EF4444;font-size:11px">Analysis unavailable</div>';return;}var ph='<div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:8px">AI RISK ANALYSIS <span style="font-size:10px;color:#475569;font-weight:400">('+(a.source||'llm')+')</span></div>';ph+='<div style="display:flex;gap:6px;margin-bottom:8px"><span style="font-size:10px;padding:2px 8px;border-radius:6px;background:'+(a.urgency==='immediate'?'#EF444415':'#F59E0B15')+';color:'+(a.urgency==='immediate'?'#EF4444':'#F59E0B')+';font-weight:700">'+a.urgency+'</span><span style="font-size:10px;padding:2px 8px;border-radius:6px;background:#6366F115;color:#818cf8;font-weight:700">confidence: '+(a.confidence*100).toFixed(0)+'%</span></div>';if(a.risk_signals){ph+='<div style="font-size:10px;font-weight:700;color:#475569;margin-bottom:4px">RISK SIGNALS</div>';a.risk_signals.forEach(function(s){var sc=s.severity==='critical'?'#EF4444':s.severity==='high'?'#F59E0B':'#818cf8';ph+='<div style="padding:4px 8px;margin-bottom:3px;border-radius:6px;background:'+sc+'08;border-left:3px solid '+sc+';font-size:11px"><b style="color:'+sc+'">'+s.signal+'</b> <span class="dim">\u2014 '+s.evidence+'</span></div>';});}if(a.intervention_plan){ph+='<div style="font-size:10px;font-weight:700;color:#475569;margin:8px 0 4px">INTERVENTION PLAN</div>';['primary','secondary','tertiary'].forEach(function(k){var p=a.intervention_plan[k];if(!p)return;var icon=k==='primary'?'1\uFE0F\u20E3':k==='secondary'?'2\uFE0F\u20E3':'3\uFE0F\u20E3';ph+='<div style="padding:6px 8px;margin-bottom:4px;border-radius:6px;background:#10B98108;border:1px solid #10B98115;font-size:11px"><span>'+icon+'</span> <b>'+p.action+'</b> via '+p.channel+' ('+p.timing+')<div class="dim" style="font-size:10px;margin-top:2px">'+p.message_template+'</div></div>';});}if(a.justification){ph+='<div style="font-size:10px;font-weight:700;color:#475569;margin:8px 0 4px">JUSTIFICATION</div><div style="font-size:11px;line-height:1.5;color:#e2e8f0">'+a.justification+'</div>';}if(panel)panel.innerHTML=ph;}).catch(function(){if(statusEl)statusEl.innerHTML='<span style="color:#EF4444">Analysis failed</span>';if(panel)panel.innerHTML='<div style="color:#EF4444;font-size:11px">Failed to run analysis</div>';})}
 function cld(){document.getElementById('dr').classList.remove('show');document.getElementById('ov').classList.remove('show')}
 
@@ -828,6 +943,7 @@ function rend(){
   else if(T==='command')h=rendCommand();
   document.getElementById('ct').innerHTML=h;
   if(T==='explorer'&&FLT.us){var e=document.getElementById('us');if(e){e.focus();e.setSelectionRange(FLT.us.length,FLT.us.length)}}
+  if(T==='cohorts'){setTimeout(checkPlaybookCooldowns,100);}
 }
 
 init();
