@@ -330,7 +330,7 @@ ORDER BY user_id, created_at DESC
 LIMIT 5000;
 `;
 
-// DDL: Create predictions table (run once)
+// DDL: Create predictions table (run once) — original with indexes
 const DDL_PREDICTIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS churn_predictions (
     id BIGINT IDENTITY(1,1),
@@ -354,6 +354,70 @@ CREATE INDEX idx_predictions_date ON churn_predictions(predicted_at);
 CREATE INDEX idx_predictions_tier ON churn_predictions(risk_tier);
 `;
 
+// DDL: Redshift-safe predictions table (SORTKEY/DISTKEY, composite unique key for idempotent writes)
+const DDL_PREDICTIONS_TABLE_RS = `
+CREATE TABLE IF NOT EXISTS churn_predictions (
+    id BIGINT IDENTITY(1,1),
+    user_id VARCHAR(64) NOT NULL ENCODE zstd,
+    predicted_at TIMESTAMP DEFAULT GETDATE(),
+    risk_tier VARCHAR(20) ENCODE zstd,
+    churn_probability FLOAT,
+    risk_score FLOAT,
+    model_version VARCHAR(20) ENCODE zstd,
+    rule_version VARCHAR(20) ENCODE zstd,
+    corridor VARCHAR(30) ENCODE zstd,
+    days_since_last INT,
+    total_txns INT,
+    intervention_type VARCHAR(50) ENCODE zstd,
+    intervention_sent BOOLEAN DEFAULT FALSE,
+    intervention_sent_at TIMESTAMP,
+    actual_outcome VARCHAR(20) ENCODE zstd,
+    outcome_evaluated_at TIMESTAMP,
+    UNIQUE (user_id, predicted_at, model_version)
+)
+DISTSTYLE KEY
+DISTKEY (user_id)
+COMPOUND SORTKEY (predicted_at, risk_tier);
+`;
+
+// DDL: LLM cost tracking table (persistent audit trail) — Redshift
+const DDL_LLM_USAGE_TABLE_RS = `
+CREATE TABLE IF NOT EXISTS churn_llm_usage (
+    id BIGINT IDENTITY(1,1),
+    model VARCHAR(50) NOT NULL ENCODE zstd,
+    tier VARCHAR(10) NOT NULL ENCODE zstd,
+    input_tokens INT,
+    output_tokens INT,
+    cost_usd FLOAT,
+    req_id VARCHAR(30) ENCODE zstd,
+    user_id VARCHAR(64) ENCODE zstd,
+    created_at TIMESTAMP DEFAULT GETDATE()
+)
+DISTSTYLE EVEN
+SORTKEY (created_at);
+`;
+
+// DDL: LLM cost tracking table — PostgreSQL compatible
+const DDL_LLM_USAGE_TABLE_PG = `
+CREATE TABLE IF NOT EXISTS churn_llm_usage (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    model VARCHAR(50) NOT NULL,
+    tier VARCHAR(10) NOT NULL,
+    input_tokens INT,
+    output_tokens INT,
+    cost_usd FLOAT,
+    req_id VARCHAR(30),
+    user_id VARCHAR(64),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_llm_usage_created ON churn_llm_usage(created_at);
+`;
+
+// DDL: Add rule_version column if missing (safe for existing tables)
+const DDL_ADD_RULE_VERSION = `
+ALTER TABLE churn_predictions ADD COLUMN IF NOT EXISTS rule_version VARCHAR(20);
+`;
+
 // All queries with metadata
 const QUERIES = {
   transactions:        { sql: QUERY_TRANSACTIONS,          name: 'Transaction Data',       refresh: '6h' },
@@ -371,6 +435,10 @@ const QUERIES = {
 module.exports = {
   QUERIES,
   DDL_PREDICTIONS_TABLE,
+  DDL_PREDICTIONS_TABLE_RS,
+  DDL_LLM_USAGE_TABLE_RS,
+  DDL_LLM_USAGE_TABLE_PG,
+  DDL_ADD_RULE_VERSION,
   QUERY_TRANSACTIONS,
   QUERY_DELIVERY,
   QUERY_PRICING,

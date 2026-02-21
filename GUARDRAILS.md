@@ -51,3 +51,21 @@
 **Impact:** Including inactive or unverified users dilutes signal and produces a model that predicts "user never engaged" rather than "user churned."
 **Rule:** ALWAYS apply population filters before training: kyc_verified == 1, total_orders >= 1, days_since_first_event >= 30.
 **Detection:** Check row counts before and after filtering — if no rows are dropped, filters may not be working.
+
+## GR-009: Tier Threshold Changes Require Human Review (2026-02)
+**Mistake:** Auto-adjusting risk tier thresholds (CRITICAL >= 0.80) based on feedback loop data without human approval.
+**Impact:** Threshold changes affect which users get interventions. Miscalibrated auto-adjustment floods ops with false positives or misses actual churners.
+**Rule:** NEVER deploy tier threshold changes without explicit human review. Feedback loop proposes; human decides.
+**Detection:** Any change to CRITICAL/HIGH/MEDIUM/LOW thresholds must go through PR review.
+
+## GR-010: Cost Tracking Mandatory for All LLM Calls (2026-02)
+**Mistake:** Adding LLM calls (Gemini Flash, Haiku) without tracking token usage and cost.
+**Impact:** Untracked LLM calls cause cost overruns. With tiered processing, per-tier cost visibility is essential.
+**Rule:** ALWAYS log model, token count (input/output), and estimated cost for every LLM call via recordCost().
+**Detection:** Any new fetch() to an LLM provider must have corresponding cost logging in llm-cost.js.
+
+## GR-011: No Auto Rule Mutation Without Approval (2026-02)
+**Mistake:** Self-learning loop automatically modifying rules.yaml or intervention mappings based on outcome analysis.
+**Impact:** Unchecked rule changes can cascade through scoring → tier assignment → interventions, affecting all users.
+**Rule:** NEVER auto-mutate rules. Feedback loop PROPOSES new rules as suggestions. Human reviews and commits changes.
+**Detection:** rules.yaml changes must appear in git diff. No programmatic writes to rules.yaml.
