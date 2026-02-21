@@ -436,6 +436,12 @@ module.exports = function(app) {
     res.json(status);
   });
 
+  // DELETE /api/cooldown/:userId — Clear cooldown for a user
+  app.delete('/api/cooldown/:userId', async (req, res) => {
+    await removeCooldown(req.params.userId, { reqId: req.id });
+    res.json({ cleared: true, user_id: req.params.userId });
+  });
+
   app.post('/api/retell/call', async (req, res) => {
     const { user_id, phone } = req.body;
     const user = userIndex[user_id];
