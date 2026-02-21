@@ -8,6 +8,25 @@
 [![API](https://img.shields.io/badge/API-52%20endpoints-orange)](#api-endpoints)
 [![Model](https://img.shields.io/badge/model-AUC%200.941-purple)](#ml-pipeline)
 
+## Team
+
+- **Team Name:** Codeaspora
+- **Members:** Abhishek PR (Full-Stack Engineer & ML)
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Vanilla HTML/JS SPA (10-tab dark-themed dashboard) |
+| Backend | Node.js 18+ (Express 5), Python 3.12+ |
+| AI/ML | Claude Haiku 4.5, Gemini 2.0 Flash, OpenRouter, LightGBM + XGBoost + CatBoost ensemble |
+| Data/Infra | Amazon Redshift, PostgreSQL, Mixpanel, AWS S3 |
+| Engagement | MoEngage (push/SMS/email/WhatsApp), Retell.ai (AI voice calls) |
+
+## Quick Start
+
+See [`RUNBOOK.md`](RUNBOOK.md) for full setup and verification steps. Estimated time: ~10 minutes.
+
 ---
 
 ## Architecture
@@ -104,14 +123,14 @@ node server/index.js
 ### Verify
 
 ```bash
-# Health check
-curl http://localhost:3000/healthz
+# Health check (backend)
+curl http://localhost:3001/healthz
 
-# Dashboard
+# Dashboard (frontend)
 open http://localhost:3000
 
-# Swagger API docs
-open http://localhost:3000/api-docs
+# Swagger API docs (backend)
+open http://localhost:3001/api-docs
 
 # Run all tests (136 total)
 make check
@@ -635,8 +654,7 @@ sheildxchurn/
 │   │   ├── live.js               # /api/early-warnings, /corridor-health, /trends
 │   │   ├── campaigns.js          # /api/interventions, /moengage, /retell, /simulator
 │   │   ├── ai.js                 # /api/ai/brief, /chat, /risk-analysis, /sentiment
-│   │   ├── predictions.js        # /api/predictions/write, /evaluate, /drift, /cost
-│   │   └── mixpanel.js           # /api/mixpanel/funnel, /overview
+│   │   └── predictions.js        # /api/predictions/write, /evaluate, /drift, /cost
 │   ├── services/                 # Business logic
 │   │   ├── cache.js              # In-memory data cache + userIndex
 │   │   ├── redshift.js           # Connection pool + query refresh

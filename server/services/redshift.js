@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
 const { QUERIES, DDL_LLM_USAGE_TABLE_PG, DDL_ADD_RULE_VERSION, DDL_ADD_TOP_REASONS } = require('../../queries');
-const { liveData } = require('./cache');
+const { liveData, rebuildFromLiveData } = require('./cache');
 const { createLogger } = require('../lib/logger');
 const log = createLogger('redshift');
 
@@ -12,9 +12,9 @@ const redshiftPool = new Pool({
   password: process.env.REDSHIFT_PASSWORD,
   database: process.env.REDSHIFT_DB || 'dev',
   ssl: { rejectUnauthorized: false },
-  max: 5,
-  idleTimeoutMillis: 60000,
-  connectionTimeoutMillis: 15000,
+  max: 2,
+  idleTimeoutMillis: 120000,
+  connectionTimeoutMillis: 120000,
 });
 
 // Local PostgreSQL — predictions + LLM usage tables
@@ -45,14 +45,21 @@ async function runRedshiftQuery(queryKey, { reqId } = {}) {
   }
 }
 
+let refreshInProgress = false;
+
 async function refreshAllData() {
+  if (refreshInProgress) {
+    log.warn('Refresh already in progress — skipping');
+    return;
+  }
+  refreshInProgress = true;
   const ts = new Date().toISOString();
   log.info('Starting data refresh');
 
   const allQueries = [
-    'monthly_trends', 'corridor_health', 'partner_performance',
-    'new_user_cohorts', 'prediction_validation',
-    'early_warnings', 'decagon_conversations', 'delivery',
+    'corridor_health', 'early_warnings', 'delivery',
+    'monthly_trends', 'partner_performance', 'new_user_cohorts',
+    'decagon_conversations', 'backtest', 'prediction_validation',
   ];
 
   for (const key of allQueries) {
@@ -64,12 +71,14 @@ async function refreshAllData() {
       log.info('Query refreshed', { query: key, rows: result.row_count, durationSec: Math.round((Date.now()-start)/1000) });
     } catch (e) {
       const isSkip = key === 'prediction_validation' || key === 'pricing';
-      liveData.refresh_status[key] = { status: isSkip ? 'skipped' : 'error', error: e.message, at: ts };
+      liveData.refresh_status[key] = { status: isSkip ? 'skipped' : 'error', error: e.message.slice(0, 80), at: ts };
       log.warn('Query refresh failed', { query: key, error: e.message.slice(0, 80), skipped: isSkip });
     }
   }
 
   liveData.last_refresh = ts;
+  rebuildFromLiveData();
+  refreshInProgress = false;
   log.info('Refresh complete');
 }
 

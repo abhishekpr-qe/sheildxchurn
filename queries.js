@@ -11,7 +11,7 @@
  *   churn_predictions — model prediction history (created by DDL below)
  */
 
-// Q1: Core Transaction Data — last 12 months, all transactions
+// Q1: Core Transaction Data — last 12 months
 const QUERY_TRANSACTIONS = `
 SELECT
     user_id,
@@ -28,7 +28,7 @@ WHERE created_at >= DATEADD(month, -12, GETDATE())
 ORDER BY created_at DESC;
 `;
 
-// Q2: Per-User Delivery Metrics — rolling 12 months
+// Q2: Per-User Delivery Metrics — last 6 months, >=2 txns, random 500
 const QUERY_DELIVERY = `
 SELECT
     user_id,
@@ -47,20 +47,25 @@ SELECT
     ROUND(AVG(CASE WHEN og_status = 'COMPLETED'
               THEN DATEDIFF(minute, created_at, updated_at) END), 2) AS avg_delivery_minutes
 FROM analytics_orders_master_data
-WHERE created_at >= DATEADD(month, -12, GETDATE())
+WHERE created_at >= DATEADD(month, -6, GETDATE())
   AND user_id IS NOT NULL
   AND send_amount > 0
-GROUP BY user_id;
+GROUP BY user_id
+HAVING COUNT(*) >= 2
+ORDER BY RANDOM()
+LIMIT 500;
 `;
 
-// Q3: Pricing Cohort Assignments
+// Q3: Pricing Cohort Assignments — random 1000
 const QUERY_PRICING = `
 SELECT
     userid AS user_id,
     whitelisttype AS pricing_cohort
 FROM user_pricing_whitelist
 WHERE whitelisttype IS NOT NULL
-  AND whitelisttype != '';
+  AND whitelisttype != ''
+ORDER BY RANDOM()
+LIMIT 1000;
 `;
 
 // Q4: Real-Time Early Warning Signals
@@ -91,7 +96,7 @@ WITH user_activity AS (
         SUM(CASE WHEN og_status IN ('STUCK', 'PROCESSING', 'PENDING')
                   AND DATEDIFF(hour, created_at, GETDATE()) > 24 THEN 1 ELSE 0 END) AS currently_stuck
     FROM analytics_orders_master_data
-    WHERE created_at >= DATEADD(month, -12, GETDATE())
+    WHERE created_at >= DATEADD(month, -6, GETDATE())
       AND user_id IS NOT NULL
       AND send_amount > 0
     GROUP BY user_id, currency_from
@@ -129,30 +134,43 @@ FROM risk_signals
 WHERE (signal_frequency_drop + signal_volume_drop + signal_high_failures +
        signal_going_inactive + signal_slow_delivery + signal_stuck_now) >= 1
 ORDER BY RANDOM()
-LIMIT 5000;
+LIMIT 500;
 `;
 
-// Q5: Corridor Health Dashboard (optimized — no correlated subquery)
+// Q5: Corridor Health Dashboard (pre-sampled 500 users for performance)
 const QUERY_CORRIDOR_HEALTH = `
-WITH user_corridor AS (
+WITH sampled_users AS (
+    SELECT user_id
+    FROM (
+        SELECT user_id, COUNT(*) AS txn_count
+        FROM analytics_orders_master_data
+        WHERE created_at >= DATEADD(month, -6, GETDATE())
+          AND user_id IS NOT NULL
+        GROUP BY user_id
+        HAVING COUNT(*) >= 2
+    )
+    ORDER BY RANDOM()
+    LIMIT 500
+),
+user_corridor AS (
     SELECT
-        user_id, currency_from,
-        MAX(created_at) AS last_txn,
+        a.user_id, a.currency_from,
+        MAX(a.created_at) AS last_txn,
         COUNT(*) AS total_txns,
-        SUM(CASE WHEN created_at >= DATEADD(day, -30, GETDATE()) THEN send_amount ELSE 0 END) AS vol_30d,
-        SUM(CASE WHEN created_at >= DATEADD(day, -60, GETDATE())
-                  AND created_at < DATEADD(day, -30, GETDATE()) THEN send_amount ELSE 0 END) AS vol_30_60d,
-        SUM(CASE WHEN created_at >= DATEADD(day, -30, GETDATE()) AND og_status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_30d,
-        SUM(CASE WHEN created_at >= DATEADD(day, -30, GETDATE()) THEN 1 ELSE 0 END) AS txns_30d,
-        SUM(CASE WHEN created_at >= DATEADD(day, -30, GETDATE()) AND og_status = 'COMPLETED'
-              THEN DATEDIFF(minute, created_at, updated_at) ELSE NULL END) AS delivery_min_sum_30d,
-        SUM(CASE WHEN created_at >= DATEADD(day, -30, GETDATE()) AND og_status = 'COMPLETED' THEN 1 ELSE 0 END) AS delivery_count_30d,
-        SUM(CASE WHEN og_status IN ('STUCK','PROCESSING','PENDING')
-                  AND DATEDIFF(hour, created_at, GETDATE()) > 24 THEN 1 ELSE 0 END) AS stuck_count
-    FROM analytics_orders_master_data
-    WHERE created_at >= DATEADD(month, -12, GETDATE())
-      AND user_id IS NOT NULL
-    GROUP BY user_id, currency_from
+        SUM(CASE WHEN a.created_at >= DATEADD(day, -30, GETDATE()) THEN a.send_amount ELSE 0 END) AS vol_30d,
+        SUM(CASE WHEN a.created_at >= DATEADD(day, -60, GETDATE())
+                  AND a.created_at < DATEADD(day, -30, GETDATE()) THEN a.send_amount ELSE 0 END) AS vol_30_60d,
+        SUM(CASE WHEN a.created_at >= DATEADD(day, -30, GETDATE()) AND a.og_status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_30d,
+        SUM(CASE WHEN a.created_at >= DATEADD(day, -30, GETDATE()) THEN 1 ELSE 0 END) AS txns_30d,
+        SUM(CASE WHEN a.created_at >= DATEADD(day, -30, GETDATE()) AND a.og_status = 'COMPLETED'
+              THEN DATEDIFF(minute, a.created_at, a.updated_at) ELSE NULL END) AS delivery_min_sum_30d,
+        SUM(CASE WHEN a.created_at >= DATEADD(day, -30, GETDATE()) AND a.og_status = 'COMPLETED' THEN 1 ELSE 0 END) AS delivery_count_30d,
+        SUM(CASE WHEN a.og_status IN ('STUCK','PROCESSING','PENDING')
+                  AND DATEDIFF(hour, a.created_at, GETDATE()) > 24 THEN 1 ELSE 0 END) AS stuck_count
+    FROM analytics_orders_master_data a
+    JOIN sampled_users s ON a.user_id = s.user_id
+    WHERE a.created_at >= DATEADD(month, -6, GETDATE())
+    GROUP BY a.user_id, a.currency_from
 )
 SELECT
     CASE currency_from
@@ -231,10 +249,11 @@ SELECT
     GETDATE() AS evaluated_at
 FROM actual_activity
 GROUP BY model_version, risk_tier
-ORDER BY risk_tier;
+ORDER BY risk_tier
+LIMIT 1000;
 `;
 
-// Q9: Fulfillment Partner Performance
+// Q8: Fulfillment Partner Performance (3 months)
 const QUERY_PARTNER_PERFORMANCE = `
 SELECT
     COALESCE(fulfillment_provider, 'Unknown') AS partner,
@@ -327,7 +346,82 @@ FROM (
 ) sub
 WHERE rn <= 3
 ORDER BY user_id, created_at DESC
-LIMIT 5000;
+LIMIT 1000;
+`;
+
+// Q11: Model Backtest (observation 60-180d ago, outcome last 60d, 5 risk signals)
+const QUERY_BACKTEST = `
+WITH observation AS (
+    SELECT
+        user_id,
+        COUNT(*) AS total_txns,
+        SUM(send_amount) AS total_volume,
+        SUM(CASE WHEN og_status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed,
+        SUM(CASE WHEN og_status = 'FAILED' THEN 1 ELSE 0 END) AS failed,
+        MAX(created_at) AS last_txn,
+        DATEDIFF(day, MAX(created_at), DATEADD(day, -60, GETDATE())) AS days_inactive_at_obs,
+        SUM(CASE WHEN created_at >= DATEADD(day, -120, GETDATE())
+                  AND created_at < DATEADD(day, -90, GETDATE()) THEN 1 ELSE 0 END) AS txns_early,
+        SUM(CASE WHEN created_at >= DATEADD(day, -90, GETDATE())
+                  AND created_at < DATEADD(day, -60, GETDATE()) THEN 1 ELSE 0 END) AS txns_late,
+        SUM(CASE WHEN created_at >= DATEADD(day, -120, GETDATE())
+                  AND created_at < DATEADD(day, -90, GETDATE()) THEN send_amount ELSE 0 END) AS vol_early,
+        SUM(CASE WHEN created_at >= DATEADD(day, -90, GETDATE())
+                  AND created_at < DATEADD(day, -60, GETDATE()) THEN send_amount ELSE 0 END) AS vol_late
+    FROM analytics_orders_master_data
+    WHERE created_at >= DATEADD(day, -180, GETDATE())
+      AND created_at < DATEADD(day, -60, GETDATE())
+      AND user_id IS NOT NULL
+      AND send_amount > 0
+    GROUP BY user_id
+    HAVING COUNT(*) >= 2
+),
+outcome AS (
+    SELECT
+        user_id,
+        COUNT(*) AS txns_after,
+        SUM(CASE WHEN og_status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_after
+    FROM analytics_orders_master_data
+    WHERE created_at >= DATEADD(day, -60, GETDATE())
+      AND user_id IS NOT NULL
+    GROUP BY user_id
+),
+scored AS (
+    SELECT
+        o.*,
+        COALESCE(oc.txns_after, 0) AS txns_after,
+        COALESCE(oc.completed_after, 0) AS completed_after,
+        CASE WHEN COALESCE(oc.txns_after, 0) = 0 THEN 1 ELSE 0 END AS actually_churned,
+        CASE WHEN o.txns_early > 0 AND o.txns_late = 0 THEN 1 ELSE 0 END AS signal_frequency_drop,
+        CASE WHEN o.vol_early > 0 AND o.vol_late < o.vol_early * 0.5 THEN 1 ELSE 0 END AS signal_volume_drop,
+        CASE WHEN o.total_txns > 0 AND (o.failed * 1.0 / o.total_txns) > 0.2 THEN 1 ELSE 0 END AS signal_high_failures,
+        CASE WHEN o.days_inactive_at_obs > 30 THEN 1 ELSE 0 END AS signal_going_inactive,
+        CASE WHEN o.txns_early >= 2 AND o.txns_late = 0 THEN 1 ELSE 0 END AS signal_declining
+    FROM observation o
+    LEFT JOIN outcome oc ON o.user_id = oc.user_id
+)
+SELECT
+    user_id,
+    total_txns, total_volume, completed, failed,
+    days_inactive_at_obs,
+    txns_after, completed_after, actually_churned,
+    signal_frequency_drop, signal_volume_drop, signal_high_failures,
+    signal_going_inactive, signal_declining,
+    (signal_frequency_drop + signal_volume_drop + signal_high_failures +
+     signal_going_inactive + signal_declining) AS total_risk_signals,
+    CASE
+        WHEN (signal_frequency_drop + signal_volume_drop + signal_high_failures +
+              signal_going_inactive + signal_declining) >= 4 THEN 'CRITICAL'
+        WHEN (signal_frequency_drop + signal_volume_drop + signal_high_failures +
+              signal_going_inactive + signal_declining) >= 3 THEN 'HIGH'
+        WHEN (signal_frequency_drop + signal_volume_drop + signal_high_failures +
+              signal_going_inactive + signal_declining) >= 2 THEN 'MEDIUM'
+        ELSE 'LOW'
+    END AS predicted_tier,
+    GETDATE() AS evaluated_at
+FROM scored
+ORDER BY RANDOM()
+LIMIT 500;
 `;
 
 // DDL: Create predictions table (run once) — original with indexes
@@ -433,6 +527,7 @@ const QUERIES = {
   partner_performance: { sql: QUERY_PARTNER_PERFORMANCE,   name: 'Partner Performance',    refresh: '6h' },
   new_user_cohorts:    { sql: QUERY_NEW_USER_COHORTS,      name: 'New User Cohorts',       refresh: '6h' },
   decagon_conversations: { sql: QUERY_DECAGON_CONVERSATIONS, name: 'Decagon Conversations',  refresh: '6h' },
+  backtest:              { sql: QUERY_BACKTEST,               name: 'Model Backtest',         refresh: '6h' },
 };
 
 module.exports = {
@@ -453,4 +548,5 @@ module.exports = {
   QUERY_PARTNER_PERFORMANCE,
   QUERY_NEW_USER_COHORTS,
   QUERY_DECAGON_CONVERSATIONS,
+  QUERY_BACKTEST,
 };
