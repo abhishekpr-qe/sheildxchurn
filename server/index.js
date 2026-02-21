@@ -18,7 +18,7 @@ const log = createLogger('server');
 
 function createApp() {
   const app = express();
-  app.use(cors());
+  app.use(cors({ origin: true, credentials: true }));
   app.use(express.json());
   app.use('/api/', rateLimit({ windowMs: 60000, max: 100 }));
   app.use('/api/metabase/query', rateLimit({ windowMs: 60000, max: 10 }));
@@ -63,6 +63,8 @@ if (require.main === module) {
   const app = createApp();
   const PORT = process.env.PORT || 3001;
 
+  // Listen on both 3001 (BE) and 3000 (FE) — same app, no CORS needed
+  app.listen(3000, () => log.info('FE mirror started', { port: 3000 }));
   app.listen(PORT, () => {
     log.info('server started', {
       port: PORT,
