@@ -35,59 +35,14 @@ from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
 
-# ── Feature Configuration ───────────────────────────────────────────────────────
+# ── Feature Configuration (single source of truth) ────────────────────────────
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from src.churn.domain.constants import (
+    SIGNAL_FEATURES, LABEL_COL, RISK_TIERS, INTERVENTIONS, CORRIDORS,
+)
 
-# All 43 Mixpanel-derived features from SIGNALS.md
-SIGNAL_FEATURES = [
-    # Engage API (9)
-    'days_since_last_seen', 'total_app_sessions', 'push_enabled',
-    'is_referred', 'kyc_verified', 'kyc_rejected', 'kyc_blocked',
-    'kyc_re_required', 'kyc_pending',
-    # Engagement (7)
-    'app_opens_l30', 'app_opens_prior30', 'session_freq_ratio',
-    'unique_screens_visited', 'screen_depth_avg', 'days_since_last_event',
-    'avg_session_gap_days',
-    # Transactions (9)
-    'order_created_l30', 'order_created_l90', 'order_completed_l30',
-    'total_orders', 'days_since_last_order', 'tx_frequency_ratio',
-    'send_clicks_l30', 'tx_conversion_rate', 'started_never_completed',
-    # Transfer funnel (3)
-    'transfer_intent_l30', 'funnel_reach_l30', 'browsing_ratio',
-    # Friction (4)
-    'api_errors_l30', 'api_timeouts_l30', 'error_rate', 'help_opens_l30',
-    # Screen journey (3)
-    'onboarding_step_reached', 'kyc_completed', 'onboarding_completed',
-    # Timing (4)
-    'days_since_first_event', 'days_to_first_order', 'tx_regularity_score',
-    'is_one_and_done',
-    # Feature interactions (4)
-    'kyc_completed_no_order', 'errors_before_first_order',
-    'high_intent_no_completion', 'single_session_deep_funnel',
-]
-
-LABEL_COL = 'churn_label'
-
-# Risk tier thresholds
-TIERS = {
-    'CRITICAL': 0.80,
-    'HIGH':     0.60,
-    'MEDIUM':   0.40,
-    'LOW':      0.00,
-}
-
-# Intervention mapping
-INTERVENTIONS = {
-    'support_callback':  {'channel': 'Phone + SMS',      'cost': 3.50, 'lift': '18-22%'},
-    'speed_guarantee':   {'channel': 'WhatsApp + Email',  'cost': 1.20, 'lift': '12-16%'},
-    'loyalty_discount':  {'channel': 'Email + In-app',    'cost': 2.00, 'lift': '14-18%'},
-    'priority_queue':    {'channel': 'SMS + In-app',      'cost': 0.50, 'lift': '10-14%'},
-    're_engagement':     {'channel': 'Email + Push',      'cost': 0.15, 'lift': '6-9%'},
-}
-
-# Corridors for synthetic data
-CORRIDORS = [
-    'UK → India', 'UAE → India', 'USA → India',
-]
+# Alias for backwards compatibility with retrain.py imports
+TIERS = RISK_TIERS
 
 
 def load_data(input_path):
@@ -971,7 +926,8 @@ def build_model_health(y_test, test_preds, y_val, val_preds, df):
         cal_data = [{'predicted': round(float(prob_pred[i]), 4),
                      'actual': round(float(prob_true[i]), 4)}
                     for i in range(len(prob_true))]
-    except Exception:
+    except (ValueError, TypeError) as e:
+        print(f'[Calibration] Skipped — insufficient bins or data ({e})')
         cal_data = []
 
     # Precision@K
@@ -1668,6 +1624,18 @@ def generate_dashboard_json(df, predictions, metrics, model_info, output_dir):
     output_path = os.path.join(output_dir, 'churn_dashboard_data.json')
     with open(output_path, 'w') as f:
         json.dump(dashboard, f, indent=2, default=str)
+
+    # Export per-user ML scores for downstream pipeline (process_transactions.py)
+    scores = {}
+    for _, row in df.iterrows():
+        scores[row['user_id']] = {
+            'churn_probability': round(float(row['churn_probability']), 4),
+            'risk_tier': row['risk_tier'],
+        }
+    scores_path = os.path.join(output_dir, 'model_user_scores.json')
+    with open(scores_path, 'w') as f:
+        json.dump(scores, f)
+    print(f'[Scores] Exported {len(scores)} user scores to {scores_path}')
 
     print(f'[Dashboard] Wrote {output_path}')
     print(f'  Total users: {len(df)}')

@@ -2,11 +2,15 @@
   "name": "churn-app",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server/index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server/index.js",
+    "start:be": "node server/index.js",
+    "start:fe": "node server/frontend.js",
+    "dev": "node server/index.js",
+    "generate-constants": "python3 -c \"import json,sys;sys.path.insert(0,'.');from src.churn.domain.constants import *;json.dump({k:v for k,v in locals().items() if k.isupper() and not k.startswith('_')},open('server/constants.json','w'),indent=2)\"",
+    "test": "make check",
+    "test:node": "npx jest"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +21,13 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "pg": "^8.18.0"
+    "express-rate-limit": "^8.2.1",
+    "js-yaml": "^4.1.0",
+    "pg": "^8.18.0",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "supertest": "^7.2.2"
   }
 }

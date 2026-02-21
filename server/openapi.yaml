@@ -1,0 +1,1699 @@
+openapi: 3.0.3
+info:
+  title: ShieldXChurn API
+  description: >
+    Churn prediction, risk analysis, and retention campaign management
+    for Aspora's cross-border remittance platform.
+  version: 2.0.0
+  contact:
+    name: Aspora Engineering
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: System
+    description: Health and status endpoints
+  - name: Data
+    description: Core data, users, model, and impact
+  - name: Live
+    description: Real-time Redshift-backed analytics
+  - name: Cohorts
+    description: User cohort analysis and playbooks
+  - name: Dossier
+    description: User dossiers, scoring, executive views
+  - name: Campaigns
+    description: Interventions, campaigns, simulator, integrations
+  - name: AI
+    description: Sentiment analysis, AI chat, risk analysis, Mixpanel
+  - name: Predictions
+    description: Self-learning feedback loop - predictions, drift detection, cost tracking
+
+paths:
+  # --- System ---
+  /healthz:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  uptime:
+                    type: number
+                    example: 123.45
+
+  # --- Data ---
+  /api/data:
+    get:
+      tags: [Data]
+      summary: Full dashboard data payload
+      operationId: getData
+      responses:
+        '200':
+          description: Dashboard data including users, model, corridors, live data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/users:
+    get:
+      tags: [Data]
+      summary: List scored users with filters
+      operationId: listUsers
+      parameters:
+        - name: tier
+          in: query
+          schema:
+            type: string
+            enum: [CRITICAL, HIGH, MEDIUM, LOW, ALL]
+        - name: corridor
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [score, volume, days]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Array of scored users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/users/{id}:
+    get:
+      tags: [Data]
+      summary: Get a single user by ID
+      operationId: getUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/model:
+    get:
+      tags: [Data]
+      summary: ML model metadata and metrics
+      operationId: getModel
+      responses:
+        '200':
+          description: Model info
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/impact:
+    get:
+      tags: [Data]
+      summary: Revenue impact analysis
+      operationId: getImpact
+      responses:
+        '200':
+          description: Impact scenarios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_churned:
+                    type: integer
+                  avg_annual_revenue_per_user:
+                    type: integer
+                  scenarios:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        label:
+                          type: string
+                        saved:
+                          type: integer
+                        revenue:
+                          type: integer
+                  intervention_cost:
+                    type: integer
+                  roi_multiple:
+                    type: integer
+
+  /api/cohorts/dropout:
+    get:
+      tags: [Data]
+      summary: Funnel dropout analysis
+      operationId: getCohortDropout
+      responses:
+        '200':
+          description: Funnel step dropout data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  funnel:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        step:
+                          type: string
+                        users:
+                          type: integer
+                        drop:
+                          type: integer
+
+  # --- Live ---
+  /api/early-warnings:
+    get:
+      tags: [Live]
+      summary: Real-time churn risk signals
+      operationId: getEarlyWarnings
+      responses:
+        '200':
+          description: Early warning data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveDataResponse'
+
+  /api/corridor-health:
+    get:
+      tags: [Live]
+      summary: Real-time corridor performance
+      operationId: getCorridorHealth
+      responses:
+        '200':
+          description: Corridor health data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveDataResponse'
+
+  /api/monthly-trends:
+    get:
+      tags: [Live]
+      summary: 12-month rolling trends
+      operationId: getMonthlyTrends
+      responses:
+        '200':
+          description: Monthly trend data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveDataResponse'
+
+  /api/partner-performance:
+    get:
+      tags: [Live]
+      summary: Fulfillment partner stats
+      operationId: getPartnerPerformance
+      responses:
+        '200':
+          description: Partner performance data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveDataResponse'
+
+  /api/cohorts/new-users:
+    get:
+      tags: [Live]
+      summary: New user cohort tracking
+      operationId: getNewUserCohorts
+      responses:
+        '200':
+          description: New user cohort data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveDataResponse'
+
+  /api/prediction-validation:
+    get:
+      tags: [Live]
+      summary: Self-learning prediction feedback
+      operationId: getPredictionValidation
+      responses:
+        '200':
+          description: Prediction validation data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveDataResponse'
+
+  /api/refresh:
+    post:
+      tags: [Live]
+      summary: Trigger manual data refresh
+      operationId: triggerRefresh
+      responses:
+        '200':
+          description: Refresh result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                  sources:
+                    type: object
+        '500':
+          description: Refresh failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/refresh-status:
+    get:
+      tags: [Live]
+      summary: Check refresh state
+      operationId: getRefreshStatus
+      responses:
+        '200':
+          description: Refresh status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  last_refresh:
+                    type: string
+                    nullable: true
+                  next_refresh:
+                    type: string
+                    nullable: true
+                  sources:
+                    type: object
+                  redshift_connected:
+                    type: boolean
+
+  # --- Cohorts ---
+  /api/cohorts:
+    get:
+      tags: [Cohorts]
+      summary: List all cohorts
+      operationId: listCohorts
+      responses:
+        '200':
+          description: Array of cohorts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Cohort'
+
+  /api/cohorts/{key}:
+    get:
+      tags: [Cohorts]
+      summary: Get cohort by key
+      operationId: getCohort
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cohort object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cohort'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/cohorts/{key}/playbook:
+    get:
+      tags: [Cohorts]
+      summary: Get cohort playbook
+      operationId: getCohortPlaybook
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cohort playbook
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cohort:
+                    type: string
+                  description:
+                    type: string
+                  count:
+                    type: integer
+                  churn_rate:
+                    type: number
+                  retention_strategy:
+                    type: string
+                  sample_users:
+                    type: array
+                    items:
+                      type: object
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # --- Dossier ---
+  /api/users/{id}/dossier:
+    get:
+      tags: [Dossier]
+      summary: Full recovery dossier for a user
+      operationId: getUserDossier
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User dossier with AI enrichment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dossier'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/score/user:
+    post:
+      tags: [Dossier]
+      summary: Score a single user
+      operationId: scoreUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+      responses:
+        '200':
+          description: Scoring result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  churn_probability:
+                    type: number
+                  risk_tier:
+                    type: string
+                  reasons:
+                    type: array
+                    items:
+                      type: object
+                  intervention:
+                    $ref: '#/components/schemas/Intervention'
+                  scored_at:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/executive:
+    get:
+      tags: [Dossier]
+      summary: Executive summary dashboard
+      operationId: getExecutive
+      responses:
+        '200':
+          description: Executive impact data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/shap:
+    get:
+      tags: [Dossier]
+      summary: SHAP feature importance data
+      operationId: getShap
+      responses:
+        '200':
+          description: SHAP data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/experiments:
+    get:
+      tags: [Dossier]
+      summary: A/B experiment results
+      operationId: getExperiments
+      responses:
+        '200':
+          description: Experiment data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/model/health:
+    get:
+      tags: [Dossier]
+      summary: Model health and backtest metrics
+      operationId: getModelHealth
+      responses:
+        '200':
+          description: Model health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:
+                    type: object
+                  backtest:
+                    type: object
+                  health:
+                    type: object
+
+  /api/data/health:
+    get:
+      tags: [Dossier]
+      summary: Data pipeline health
+      operationId: getDataHealth
+      responses:
+        '200':
+          description: Data health
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/compliance:
+    get:
+      tags: [Dossier]
+      summary: Compliance status
+      operationId: getCompliance
+      responses:
+        '200':
+          description: Compliance data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # --- Campaigns ---
+  /api/interventions/trigger:
+    post:
+      tags: [Campaigns]
+      summary: Trigger intervention for a user
+      operationId: triggerIntervention
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                channel:
+                  type: string
+                campaign:
+                  type: string
+                playbook:
+                  type: string
+      responses:
+        '200':
+          description: Intervention triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterventionLogEntry'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/interventions/outcome:
+    post:
+      tags: [Campaigns]
+      summary: Record intervention outcome
+      operationId: recordOutcome
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [intervention_id, outcome]
+              properties:
+                intervention_id:
+                  type: string
+                outcome:
+                  type: string
+                  enum: [retained, churned, no_response]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Updated intervention entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterventionLogEntry'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/interventions/log:
+    get:
+      tags: [Campaigns]
+      summary: Recent intervention log
+      operationId: getInterventionLog
+      responses:
+        '200':
+          description: Array of intervention log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InterventionLogEntry'
+
+  /api/campaigns/history:
+    get:
+      tags: [Campaigns]
+      summary: Campaign audit trail
+      operationId: getCampaignHistory
+      responses:
+        '200':
+          description: Campaign history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  campaigns:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+                  s3_configured:
+                    type: boolean
+
+  /api/simulator:
+    post:
+      tags: [Campaigns]
+      summary: Revenue impact simulator
+      operationId: runSimulator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cohort_key:
+                  type: string
+                playbook:
+                  type: string
+                budget:
+                  type: number
+                target_count:
+                  type: integer
+      responses:
+        '200':
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulatorResult'
+
+  /api/integrations:
+    get:
+      tags: [Campaigns]
+      summary: Integration status for all services
+      operationId: getIntegrations
+      responses:
+        '200':
+          description: Integration statuses
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    status:
+                      type: string
+                      enum: [connected, configured, not_configured]
+                    icon:
+                      type: string
+
+  /api/moengage/engage:
+    post:
+      tags: [Campaigns]
+      summary: Send single intervention via MoEngage
+      operationId: moengageEngage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                channel:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Engagement result
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: MoEngage send failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/moengage/bulk:
+    post:
+      tags: [Campaigns]
+      summary: Bulk campaign via MoEngage
+      operationId: moengageBulk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tier:
+                  type: string
+                  enum: [CRITICAL, HIGH, MEDIUM, LOW]
+                max_count:
+                  type: integer
+                channel:
+                  type: string
+      responses:
+        '200':
+          description: Bulk campaign result
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: Bulk campaign failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/retell/call:
+    post:
+      tags: [Campaigns]
+      summary: Initiate AI voice call via Retell
+      operationId: retellCall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: Call initiated
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: Call failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/metabase/query:
+    post:
+      tags: [Campaigns]
+      summary: Redshift query proxy (SELECT only)
+      operationId: metabaseQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sql:
+                  type: string
+                  description: Raw SELECT query
+                query_key:
+                  type: string
+                  description: Named query shortcut
+      responses:
+        '200':
+          description: Query result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  columns:
+                    type: array
+                    items:
+                      type: string
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                  row_count:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          description: Query failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # --- AI ---
+  /api/users/{id}/sentiment:
+    get:
+      tags: [AI]
+      summary: Sentiment analysis for a user
+      operationId: getUserSentiment
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Sentiment result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentimentResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: Sentiment analysis failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/sentiment/summary:
+    get:
+      tags: [AI]
+      summary: Bulk sentiment summary for all users
+      operationId: getSentimentSummary
+      responses:
+        '200':
+          description: Map of user_id to sentiment summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    sentiment:
+                      type: string
+                    pain_points_count:
+                      type: integer
+                    churn_signal:
+                      type: string
+                    urgency:
+                      type: string
+                    has_conversations:
+                      type: boolean
+
+  /api/decagon:
+    get:
+      tags: [AI]
+      summary: Browse Decagon conversation data
+      operationId: getDecagon
+      responses:
+        '200':
+          description: Decagon conversation overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  source:
+                    type: string
+                  unique_users:
+                    type: integer
+                  total_conversations:
+                    type: integer
+                  countries:
+                    type: object
+                  destinations:
+                    type: object
+                  users:
+                    type: array
+                    items:
+                      type: object
+
+  /api/ai/brief:
+    post:
+      tags: [AI]
+      summary: Generate AI brief for a user
+      operationId: aiBrief
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+      responses:
+        '200':
+          description: AI-generated brief
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  brief:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/ai/chat:
+    post:
+      tags: [AI]
+      summary: AI chat assistant
+      operationId: aiChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+
+  /api/ai/risk-analysis:
+    post:
+      tags: [AI]
+      summary: LLM risk analysis (single or batch)
+      operationId: aiRiskAnalysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                user_ids:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 20
+      responses:
+        '200':
+          description: Risk analysis results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  analyses:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/RiskAnalysis'
+                  count:
+                    type: integer
+                  timestamp:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/mixpanel/funnel:
+    post:
+      tags: [AI]
+      summary: Query Mixpanel funnel data
+      operationId: mixpanelFunnel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                funnel_id:
+                  type: string
+                from_date:
+                  type: string
+                to_date:
+                  type: string
+      responses:
+        '200':
+          description: Funnel data
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: Mixpanel query failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/mixpanel/overview:
+    get:
+      tags: [AI]
+      summary: Cached Mixpanel overview
+      operationId: mixpanelOverview
+      responses:
+        '200':
+          description: Mixpanel overview with funnels and daily snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/mixpanel/funnels:
+    get:
+      tags: [AI]
+      summary: List available Mixpanel funnels
+      operationId: mixpanelFunnels
+      responses:
+        '200':
+          description: Available and cached funnels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: object
+                  cached:
+                    type: array
+                    items:
+                      type: string
+                  last_refresh:
+                    type: string
+                    nullable: true
+
+  # --- Predictions ---
+  /api/predictions/write:
+    post:
+      tags: [Predictions]
+      summary: Batch write scored predictions (idempotent)
+      operationId: writePredictions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model_version, predictions]
+              properties:
+                model_version:
+                  type: string
+                predictions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                      risk_tier:
+                        type: string
+                        enum: [CRITICAL, HIGH, MEDIUM, LOW]
+                      churn_probability:
+                        type: number
+                      risk_score:
+                        type: number
+                      corridor:
+                        type: string
+                      days_since_last:
+                        type: integer
+                      total_txns:
+                        type: integer
+                      intervention_type:
+                        type: string
+      responses:
+        '200':
+          description: Write result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  written:
+                    type: integer
+                  errors:
+                    type: integer
+                  model_version:
+                    type: string
+                  rule_version:
+                    type: string
+                  timestamp:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/predictions/evaluate:
+    post:
+      tags: [Predictions]
+      summary: Evaluate 60-day prediction outcomes
+      operationId: evaluatePredictions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                window_days:
+                  type: integer
+                  default: 60
+      responses:
+        '200':
+          description: Evaluation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evaluated:
+                    type: integer
+                  window_days:
+                    type: integer
+                  timestamp:
+                    type: string
+
+  /api/predictions/drift:
+    get:
+      tags: [Predictions]
+      summary: Model drift status with governance
+      operationId: getPredictionDrift
+      responses:
+        '200':
+          description: Drift status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drifted:
+                    type: boolean
+                  alert:
+                    type: boolean
+                  current_auc:
+                    type: number
+                  baseline_auc:
+                    type: number
+                  drop_pct:
+                    type: number
+                  consecutive_degradations:
+                    type: integer
+                  threshold:
+                    type: integer
+                  feature_drift:
+                    type: array
+                    items:
+                      type: object
+                  model_version:
+                    type: string
+
+  /api/predictions/cost:
+    get:
+      tags: [Predictions]
+      summary: LLM cost summary per tier
+      operationId: getPredictionCost
+      responses:
+        '200':
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  last_24h:
+                    type: object
+                    properties:
+                      by_tier:
+                        type: object
+                      total_calls:
+                        type: integer
+                      total_cost:
+                        type: number
+                  last_30d:
+                    type: object
+                    properties:
+                      rows:
+                        type: array
+                        items:
+                          type: object
+                      days:
+                        type: integer
+                      timestamp:
+                        type: string
+                  timestamp:
+                    type: string
+
+  /api/predictions/analyze-rules:
+    get:
+      tags: [Predictions]
+      summary: Analyze rule effectiveness against actual outcomes
+      operationId: analyzeRules
+      responses:
+        '200':
+          description: Per-rule precision, missed churns, false alarms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evaluated:
+                    type: integer
+                  missed_churns:
+                    type: integer
+                  false_alarms:
+                    type: integer
+                  rule_analysis:
+                    type: array
+                    items:
+                      type: object
+                  tier_accuracy:
+                    type: array
+                    items:
+                      type: object
+
+  /api/predictions/propose-rules:
+    post:
+      tags: [Predictions]
+      summary: Generate rule change proposals based on outcome analysis
+      operationId: proposeRules
+      responses:
+        '200':
+          description: Rule change proposals with analysis summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  analysis_summary:
+                    type: object
+                  proposals:
+                    type: array
+                    items:
+                      type: object
+                  current_version:
+                    type: string
+
+  /api/predictions/apply-rules:
+    post:
+      tags: [Predictions]
+      summary: Apply rule proposals and create PR (GR-009 human review)
+      operationId: applyRules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proposals]
+              properties:
+                proposals:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: PR created with rule changes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applied:
+                    type: integer
+                  version:
+                    type: string
+                  branch:
+                    type: string
+                  changes:
+                    type: array
+                    items:
+                      type: string
+                  pr_url:
+                    type: string
+
+components:
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-zA-Z0-9_-]+$'
+      description: User ID (alphanumeric, hyphens, underscores)
+
+  schemas:
+    User:
+      type: object
+      properties:
+        user_id:
+          type: string
+        corridor:
+          type: string
+        currency:
+          type: string
+        tenure_days:
+          type: integer
+        total_txns:
+          type: integer
+        completed_txns:
+          type: integer
+        failed_txns:
+          type: integer
+        total_volume:
+          type: number
+        days_since_last:
+          type: integer
+        fail_rate:
+          type: number
+        avg_delivery_min:
+          type: number
+        stuck_rate:
+          type: number
+        churn_probability:
+          type: number
+        risk_score:
+          type: number
+        risk_tier:
+          type: string
+          enum: [CRITICAL, HIGH, MEDIUM, LOW]
+        reasons:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+              weight:
+                type: string
+
+    Intervention:
+      type: object
+      properties:
+        type:
+          type: string
+        channel:
+          type: string
+        message:
+          type: string
+        lift:
+          type: string
+        cost:
+          type: number
+
+    RiskAnalysis:
+      type: object
+      properties:
+        risk_signals:
+          type: array
+          items:
+            type: object
+            properties:
+              signal:
+                type: string
+              severity:
+                type: string
+                enum: [critical, high, medium, low]
+              evidence:
+                type: string
+        intervention_plan:
+          type: object
+          properties:
+            primary:
+              $ref: '#/components/schemas/InterventionStep'
+            secondary:
+              $ref: '#/components/schemas/InterventionStep'
+            tertiary:
+              $ref: '#/components/schemas/InterventionStep'
+        justification:
+          type: string
+        urgency:
+          type: string
+          enum: [immediate, this_week, this_month]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        source:
+          type: string
+
+    InterventionStep:
+      type: object
+      properties:
+        action:
+          type: string
+        channel:
+          type: string
+        timing:
+          type: string
+        message_template:
+          type: string
+
+    SentimentResult:
+      type: object
+      properties:
+        user_id:
+          type: string
+        has_conversations:
+          type: boolean
+        conversation_count:
+          type: integer
+        last_interaction:
+          type: string
+          nullable: true
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative, frustrated, concerned, unknown]
+        pain_points:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        churn_signal:
+          type: string
+          enum: [yes, maybe, no, unknown]
+        urgency:
+          type: string
+          enum: [immediate, soon, monitor]
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationSummary'
+
+    ConversationSummary:
+      type: object
+      properties:
+        date:
+          type: string
+        channel:
+          type: string
+        status:
+          type: string
+        summary:
+          type: string
+        resolution:
+          type: string
+          nullable: true
+        rating:
+          type: string
+          nullable: true
+        order_id:
+          type: string
+          nullable: true
+        user_messages:
+          type: array
+          items:
+            type: string
+
+    Dossier:
+      type: object
+      properties:
+        user_id:
+          type: string
+        generated_at:
+          type: string
+        risk_tier:
+          type: string
+        churn_probability:
+          type: number
+        confidence:
+          type: number
+        corridor:
+          type: string
+        tenure_days:
+          type: integer
+        total_txns:
+          type: integer
+        total_volume:
+          type: number
+        days_inactive:
+          type: integer
+        churn_reasons:
+          type: array
+          items:
+            type: object
+        shap_drivers:
+          type: array
+          items:
+            type: object
+        cohort:
+          type: object
+          nullable: true
+        recommended_intervention:
+          $ref: '#/components/schemas/Intervention'
+        nudge_sequence:
+          type: array
+          items:
+            type: object
+            properties:
+              day:
+                type: integer
+              action:
+                type: string
+              channel:
+                type: string
+              message:
+                type: string
+        expected_uplift:
+          type: string
+        owner:
+          type: string
+        sentiment:
+          $ref: '#/components/schemas/SentimentResult'
+        ai_summary:
+          type: string
+          nullable: true
+        llm_risk_signals:
+          type: array
+          nullable: true
+          items:
+            type: object
+        llm_intervention_plan:
+          type: object
+          nullable: true
+        llm_justification:
+          type: string
+          nullable: true
+        llm_urgency:
+          type: string
+          nullable: true
+        llm_confidence:
+          type: number
+          nullable: true
+        llm_source:
+          type: string
+          nullable: true
+
+    Cohort:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        count:
+          type: integer
+        churn_rate:
+          type: number
+        retention_strategy:
+          type: string
+        sample_users:
+          type: array
+          items:
+            type: object
+
+    SimulatorResult:
+      type: object
+      properties:
+        cohort:
+          type: string
+        playbook:
+          type: string
+        target_users:
+          type: integer
+        avg_churn_probability:
+          type: number
+        lift_rate:
+          type: number
+        expected_retained:
+          type: integer
+        projected_revenue:
+          type: integer
+        projected_cost:
+          type: integer
+        net_profit:
+          type: integer
+        roi:
+          type: number
+
+    InterventionLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        channel:
+          type: string
+        campaign:
+          type: string
+        playbook:
+          type: string
+        risk_tier:
+          type: string
+        churn_probability:
+          type: number
+        triggered_at:
+          type: string
+        status:
+          type: string
+        outcome:
+          type: string
+          nullable: true
+        outcome_at:
+          type: string
+        notes:
+          type: string
+
+    LiveDataResponse:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [cache, live, static, error, unavailable]
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: object
+        row_count:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

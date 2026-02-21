@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pytest-cov>=6.0"]
 
 [project.scripts]
 churn = "churn.cli.main:main"
@@ -27,3 +27,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/churn"]
+omit = ["*/cli/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
