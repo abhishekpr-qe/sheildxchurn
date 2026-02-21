@@ -71,7 +71,7 @@ input:focus,select:focus{border-color:#5523B2}
 .t-btn-l{font-size:15px;font-weight:600;line-height:110%;letter-spacing:-1px}.t-btn-m{font-size:14px;font-weight:600;line-height:110%;letter-spacing:-1px}.t-btn-s{font-size:12px;font-weight:600;line-height:110%;letter-spacing:-1px}
 .t-accent-h1{font-family:'PP Neue Corp','Inter',system-ui,sans-serif;font-size:44px;font-weight:700;line-height:80%;letter-spacing:-1.5px}
 </style></head><body>
-<div class="hdr"><div style="display:flex;align-items:center;gap:14px"><div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#5523B2,#7C57CC);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:16px;letter-spacing:-1px;line-height:130%;box-shadow:0 4px 12px #5523B240">A</div><div><div style="font-size:17px;font-weight:700;letter-spacing:-1px;line-height:130%">Churn Intelligence</div><div id="hsub" style="font-size:10px;color:#AEAEB2;letter-spacing:-1px;line-height:130%"></div></div></div><div style="display:flex;align-items:center;gap:8px"><span class="live-pulse" style="width:8px;height:8px;background:#188833;border-radius:50%;box-shadow:0 0 8px #18883380;display:inline-block"></span><span style="font-size:12px;color:#188833;font-weight:600;letter-spacing:-1px;line-height:140%">LIVE</span></div></div>
+<div class="hdr"><div style="display:flex;align-items:center;gap:14px"><div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#5523B2,#7C57CC);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:16px;letter-spacing:-1px;line-height:130%;box-shadow:0 4px 12px #5523B240">A</div><div><div style="font-size:17px;font-weight:700;letter-spacing:-1px;line-height:130%">Churn Intelligence</div><div id="hsub" style="font-size:10px;color:#AEAEB2;letter-spacing:-1px;line-height:130%"></div></div></div><div style="display:flex;align-items:center;gap:12px"><button id="fetchBtn" class="btn btn-outline" style="font-size:11px;padding:6px 14px" onclick="fetchData()">Fetch Data</button><span class="live-pulse" style="width:8px;height:8px;background:#188833;border-radius:50%;box-shadow:0 0 8px #18883380;display:inline-block"></span><span style="font-size:12px;color:#188833;font-weight:600;letter-spacing:-1px;line-height:140%">LIVE</span></div></div>
 <div class="tabs" id="tabs"></div>
 <div class="ct" id="ct"><div style="text-align:center;padding:80px 0;color:#AEAEB2">Loading platform...</div></div>
 <div class="ov" id="ov" onclick="cld()"></div>
@@ -92,6 +92,24 @@ input:focus,select:focus{border-color:#5523B2}
 <script>
 var D,IM,INT,COH,EX,SHP,SENT,EXPT,DEC,T='warroom';
 var FLT={us:'',ut:'ALL',uc:'ALL',uv:'ALL',utn:''};
+function fetchData(){
+  var btn=document.getElementById('fetchBtn');
+  btn.textContent='Fetching...';btn.disabled=true;btn.style.color='#DF7727';btn.style.borderColor='#DF7727';
+  fetch((window.API_BASE||'')+'/api/refresh',{method:'POST'}).then(function(r){return r.json()}).then(function(){
+    btn.textContent='Reloading...';btn.style.color='#188833';btn.style.borderColor='#188833';
+    return Promise.all([
+      fetch((window.API_BASE||'')+'/api/data').then(function(r){return r.json()}),
+      fetch((window.API_BASE||'')+'/api/executive').then(function(r){return r.json()})
+    ]);
+  }).then(function(res){
+    D=res[0];EX=res[1];_allUsers=null;
+    btn.textContent='Fetch Data';btn.disabled=false;btn.style.color='';btn.style.borderColor='';
+    rend();
+  }).catch(function(e){
+    btn.textContent='Failed';btn.style.color='#F71D11';btn.style.borderColor='#F71D11';
+    setTimeout(function(){btn.textContent='Fetch Data';btn.disabled=false;btn.style.color='';btn.style.borderColor='';},3000);
+  });
+}
 var TC={CRITICAL:'#F71D11',HIGH:'#DF7727',MEDIUM:'#4A5DF9',LOW:'#188833'};
 var BC={CRITICAL:'background:#F71D1115;color:#F71D11;border:1px solid #F71D1130',HIGH:'background:#DF772715;color:#DF7727;border:1px solid #DF772730',MEDIUM:'background:#4A5DF915;color:#4A5DF9;border:1px solid #4A5DF930',LOW:'background:#18883315;color:#188833;border:1px solid #18883330'};
 function fm(n){if(n==null)return'-';return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n)}
@@ -169,7 +187,7 @@ function init(){
 }
 
 function rtabs(){
-  var ts=[['warroom','War Room'],['explorer','Risk Explorer'],['experiments','Experiments'],['simulator','Simulator'],['cohorts','Funnels & Cohorts'],['command','Command Center']];
+  var ts=[['warroom','War Room'],['explorer','Risk Explorer'],['simulator','Simulator'],['command','Command Center']];
   document.getElementById('tabs').innerHTML=ts.map(function(t){return'<button class="tab'+(T===t[0]?' on':'')+'" onclick="T=\''+t[0]+'\';rtabs();rend()">'+t[1]+'</button>'}).join('');
 }
 
@@ -182,7 +200,7 @@ function rendWarRoom(){
 
   // Live Pulse Strip
   h+='<div class="cd hero" style="padding:16px 20px">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:13px;font-weight:600;letter-spacing:-1px;line-height:130%;display:flex;align-items:center;gap:8px"><span class="live-pulse" style="width:6px;height:6px;background:#188833;border-radius:50%;display:inline-block"></span>Live Pulse — '+((snap&&snap.date)||'Today')+'</div><div style="font-size:10px;color:#AEAEB2">Mixpanel | 2.3M events/day</div></div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:13px;font-weight:600;letter-spacing:-1px;line-height:130%;display:flex;align-items:center;gap:8px"><span class="live-pulse" style="width:6px;height:6px;background:#188833;border-radius:50%;display:inline-block"></span>Live Pulse — '+((snap&&snap.date)||'Today')+'</div><div style="font-size:10px;color:#AEAEB2">Mixpanel | Live</div></div>';
   h+='<div style="display:flex;gap:10px;flex-wrap:wrap">';
   if(snap){
     var pills=[['DAU',fm(snap.daily_active_users),'#188833'],['Orders',fm(snap.orders_created),'#7C57CC'],['Completed',fm(snap.orders_completed),'#188833'],['Failed',fm(snap.orders_failed),'#F71D11'],['Sessions',fm(snap.sessions),'#4A5DF9'],['API Errors',fm(snap.api_errors),'#F71D11'],['Support Chats',fm(snap.chat_clicks),'#DF7727'],['KYC Updates',fm(snap.kyc_updated),'#4A5DF9'],['New Signups',fm(snap.users_signed_up),'#188833']];
@@ -197,7 +215,7 @@ function rendWarRoom(){
     h+='<div class="cd" style="padding:16px 20px">';
     h+=sec('Integration Architecture','5 LIVE SYSTEMS','#188833');
     h+='<div style="display:flex;gap:10px;flex-wrap:wrap">';
-    var intData={brain:['Anthropic AI','Haiku for dossiers + chat'],database:['Redshift','442K users, 6.8M orders (direct SQL)'],chart:['Mixpanel','1.2M profiles, 2.3M events/day'],bell:['MoEngage','Push, Email, SMS, WhatsApp'],phone:['Retell.ai','AI voice retention calls']};
+    var intData={brain:['Anthropic AI','Haiku for dossiers + chat'],database:['Redshift','Direct SQL (live data)'],chart:['Mixpanel','Live event tracking'],bell:['MoEngage','Push, Email, SMS, WhatsApp'],phone:['Retell.ai','AI voice retention calls']};
     var decScale=DEC.total_conversations?', '+fm(DEC.total_conversations)+' convos':'';
     Object.values(INT).forEach(function(i){
       var cls=i.status==='connected'?'int-connected':i.status==='configured'?'int-configured':'int-not';
@@ -300,7 +318,8 @@ function rendWarRoom(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 2: RISK EXPLORER
 // ═══════════════════════════════════════════════════════════════════════════════
-var _searchTimer,_searchResults;
+var _searchTimer,_searchResults,_allUsers;
+function loadAllUsers(){if(_allUsers)return;fetch((window.API_BASE||'')+'/api/users?limit=500').then(function(r){return r.json()}).then(function(users){_allUsers=users;rend()}).catch(function(){})}
 function searchUsers(){clearTimeout(_searchTimer);_searchTimer=setTimeout(function(){var q=FLT.us;if(q.length>=3){fetch((window.API_BASE||'')+'/api/users?search='+encodeURIComponent(q)+'&limit=100').then(function(r){return r.json()}).then(function(users){_searchResults=users;rend()}).catch(function(){_searchResults=null;rend()})}else{_searchResults=null;rend()}},300)}
 function rendExplorer(){
   var h='',co=D.churn_overview;
@@ -327,8 +346,10 @@ function rendExplorer(){
   h+='<select id="utn" onchange="FLT.utn=this.value;rend()"><option value="ALL">All Tenure</option><option value="NEW"'+(FLT.utn==='NEW'?' selected':'')+'>&#60;30d</option><option value="MID"'+(FLT.utn==='MID'?' selected':'')+'>30-90d</option><option value="OLD"'+(FLT.utn==='OLD'?' selected':'')+'>&#62;90d</option></select>';
   h+='</div>';
 
+  loadAllUsers();
   var dd;
   if(_searchResults&&FLT.us.length>=3){dd=_searchResults}
+  else if(_allUsers&&_allUsers.length){dd=_allUsers}
   else{var all=[].concat(D.at_risk_users||[],D.churned_sample||[],D.healthy_sample||[]);var seen={};dd=all.filter(function(u){if(seen[u.user_id])return false;seen[u.user_id]=1;return true})}
   var tf=FLT.ut;var cf=FLT.uc;var vf=FLT.uv;var tnf=FLT.utn;
   if(tf!=='ALL')dd=dd.filter(function(u){return u.risk_tier===tf});
@@ -375,6 +396,7 @@ function rendExplorer(){
 // ═══════════════════════════════════════════════════════════════════════════════
 function rendExperiments(){
   var h='';
+  if(!EXPT||!EXPT.overall){return '<div class="cd" style="padding:40px;text-align:center"><div class="mut" style="font-size:14px">No experiment data available.</div><div class="dim" style="margin-top:8px;font-size:12px">Run A/B experiments to see results here.</div></div>';}
 
   // Overall A/B Hero
   var ov=EXPT.overall||{};
@@ -739,7 +761,7 @@ function rendCommand(){
 // USER 360 DRAWER
 // ═══════════════════════════════════════════════════════════════════════════════
 function opn(id){
-  var all=[].concat(D.at_risk_users||[],D.churned_sample||[],D.healthy_sample||[],_searchResults||[]);var u;for(var i=0;i<all.length;i++){if(all[i].user_id===id){u=all[i];break;}}
+  var all=[].concat(_allUsers||[],D.at_risk_users||[],D.churned_sample||[],D.healthy_sample||[],_searchResults||[]);var u;for(var i=0;i<all.length;i++){if(all[i].user_id===id){u=all[i];break;}}
   if(!u){fetch((window.API_BASE||'')+'/api/users/'+encodeURIComponent(id)).then(function(r){return r.json()}).then(function(usr){if(usr&&usr.user_id)_opnUser(usr)}).catch(function(){});return;}
   _opnUser(u);
 }
@@ -768,6 +790,7 @@ function _opnUser(u){
 
   if(u.intervention){d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;letter-spacing:-1px;line-height:140%;margin-bottom:6px">Recommended Intervention</div><div style="background:#18883308;border:1px solid #18883320;border-radius:8px;padding:10px"><div style="font-size:12px;font-weight:600;letter-spacing:-1px;line-height:140%;color:#188833">'+u.intervention.type.replace(/_/g,' ').toUpperCase()+'</div><div style="font-size:12px;margin:4px 0">'+u.intervention.message+'</div><div class="dim" style="font-size:10px">'+u.intervention.channel+' | $'+u.intervention.cost+' | '+u.intervention.lift+'</div></div></div>';}
 
+  d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;letter-spacing:-1px;line-height:140%;margin-bottom:6px">Transaction History</div><div id="txn-history" class="mut" style="font-size:12px">Loading transactions...</div></div>';
   d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;letter-spacing:-1px;line-height:140%;margin-bottom:6px">Event Timeline</div><div id="timeline" class="mut" style="font-size:12px">Loading...</div></div>';
   d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;letter-spacing:-1px;line-height:140%;margin-bottom:6px">Risk Trend</div><div id="risktrend" class="mut" style="font-size:12px">Loading...</div></div>';
 
@@ -782,6 +805,21 @@ function _opnUser(u){
   d+='<div id="llm-risk-panel" style="display:none" class="cd" style="margin-bottom:12px"></div>';
 
   document.getElementById('dr').innerHTML=d;document.getElementById('dr').classList.add('show');document.getElementById('ov').classList.add('show');
+
+  // Load transactions
+  fetch((window.API_BASE||'')+'/api/users/'+id+'/transactions').then(function(r){return r.json()}).then(function(txns){
+    var el=document.getElementById('txn-history');if(!el)return;
+    if(!txns||!txns.length){el.innerHTML='<span class="dim">No transaction records found.</span>';return;}
+    var th='<table style="width:100%;font-size:11px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:right">Amount</th><th>Currency</th><th>Status</th><th style="text-align:right">Time</th></tr></thead><tbody>';
+    txns.slice(0,20).forEach(function(t){
+      var sc=t.og_status==='COMPLETED'?'#188833':t.og_status==='FAILED'?'#F71D11':'#DF7727';
+      var amt=typeof t.send_amount==='number'?fm(t.send_amount):t.send_amount;
+      th+='<tr><td class="dim">'+((t.created_at||'').substring(0,24))+'</td><td style="text-align:right;font-weight:600">'+amt+'</td><td>'+t.currency_from+'</td><td style="color:'+sc+';font-weight:600">'+t.og_status+'</td><td style="text-align:right" class="dim">'+(t.processing_minutes||'-')+'min</td></tr>';
+    });
+    th+='</tbody></table>';
+    if(txns.length>20)th+='<div class="dim" style="margin-top:4px;font-size:10px">Showing 20 of '+txns.length+' transactions</div>';
+    el.innerHTML=th;
+  }).catch(function(){var el=document.getElementById('txn-history');if(el)el.innerHTML='<span class="dim">Unavailable.</span>';});
 
   // Load sentiment
   fetch((window.API_BASE||'')+'/api/users/'+id+'/sentiment').then(function(r){return r.json()}).then(function(s){
@@ -835,9 +873,7 @@ function rend(){
   var h='';
   if(T==='warroom')h=rendWarRoom();
   else if(T==='explorer')h=rendExplorer();
-  else if(T==='experiments')h=rendExperiments();
   else if(T==='simulator')h=rendSimulator();
-  else if(T==='cohorts')h=rendCohorts();
   else if(T==='command')h=rendCommand();
   document.getElementById('ct').innerHTML=h;
   if(T==='explorer'&&FLT.us){var e=document.getElementById('us');if(e){e.focus();e.setSelectionRange(FLT.us.length,FLT.us.length)}}

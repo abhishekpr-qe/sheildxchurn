@@ -1,4 +1,4 @@
-const { data, userIndex, liveData, mixpanelData } = require('../services/cache');
+const { data, userIndex, transactionIndex, liveData, mixpanelData } = require('../services/cache');
 const { validateTier, validateCorridor, validateSearch, validateLimit } = require('../lib/validate');
 const { DEFAULT_LIMITS } = require('../config');
 
@@ -77,55 +77,44 @@ module.exports = function(app) {
       if (liveData.partner_performance?.rows?.length) {
         limited.partner_performance = liveData.partner_performance.rows;
       }
+
+      // Populate transaction_status from delivery data
+      if (liveData.delivery?.rows?.length) {
+        let comp = 0, fail = 0, stuck = 0;
+        liveData.delivery.rows.forEach(r => {
+          comp += Number(r.completed) || 0;
+          fail += Number(r.failed) || 0;
+          stuck += Number(r.stuck) || 0;
+        });
+        limited.transaction_status = { COMPLETED: comp, FAILED: fail, STUCK: stuck, PROCESSING: 0, PENDING: 0 };
+      }
+
+      // Populate churn_overview from early_warnings + corridor_health
+      if (liveData.early_warnings?.rows?.length || liveData.corridor_health?.rows?.length) {
+        const atRisk = limited.at_risk_users?.length || 0;
+        const totalUsers = limited.summary?.total_users || 0;
+        const activeUsers = limited.summary?.active_30d || 0;
+        const churned = totalUsers - activeUsers;
+        limited.churn_overview = {
+          status: { CHURNED: churned, ACTIVE: activeUsers, AT_RISK: atRisk, HEALTHY: Math.max(activeUsers - atRisk, 0) },
+          tiers: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
+        };
+        (limited.at_risk_users || []).forEach(u => {
+          if (limited.churn_overview.tiers[u.risk_tier] !== undefined) limited.churn_overview.tiers[u.risk_tier]++;
+        });
+      }
     }
 
-    // Include Mixpanel data
+    // Include Mixpanel data — only real data from live refresh, no hardcoded fallbacks
     if (mixpanelData.last_refresh) {
       limited.mixpanel = {
         funnels: mixpanelData.funnels,
         engage_stats: mixpanelData.engage_stats,
         last_refresh: mixpanelData.last_refresh,
-        daily_snapshot: {
-          date: '2026-02-20',
-          total_events: 2295011,
-          daily_active_users: 77599,
-          orders_created: 23671,
-          orders_completed: 15307,
-          orders_failed: 6638,
-          sessions: 159625,
-          api_errors: 2581,
-          api_timeouts: 2609,
-          kyc_updated: 3761,
-          users_signed_up: 1198,
-          users_created: 1100,
-          help_screens: 4954,
-          chat_clicks: 1493,
-          transfer_screens: 116468,
-          review_screens: 45189,
-        },
+        daily_snapshot: mixpanelData.daily_snapshot || null,
       };
     } else {
-      // Always include daily_snapshot even before Mixpanel refresh
-      limited.mixpanel = {
-        daily_snapshot: {
-          date: '2026-02-20',
-          total_events: 2295011,
-          daily_active_users: 77599,
-          orders_created: 23671,
-          orders_completed: 15307,
-          orders_failed: 6638,
-          sessions: 159625,
-          api_errors: 2581,
-          api_timeouts: 2609,
-          kyc_updated: 3761,
-          users_signed_up: 1198,
-          users_created: 1100,
-          help_screens: 4954,
-          chat_clicks: 1493,
-          transfer_screens: 116468,
-          review_screens: 45189,
-        },
-      };
+      limited.mixpanel = { daily_snapshot: null };
     }
 
     // Include live data status
@@ -166,17 +155,25 @@ module.exports = function(app) {
     else res.status(404).json({ error: 'User not found' });
   });
 
+  app.get('/api/users/:id/transactions', (req, res) => {
+    const id = req.params.id;
+    const liveRows = (liveData.transactions?.rows || []).filter(r => r.user_id === id);
+    const csvRows = transactionIndex[id] || [];
+    const txns = liveRows.length ? liveRows : csvRows;
+    res.json(txns);
+  });
+
   app.get('/api/model', (req, res) => {
     res.json(data.model || {});
   });
 
   app.get('/api/impact', (req, res) => {
     const churned = data.churned_sample || [];
-    const totalChurned = data.backtest.total_churned;
-    const sumVolume = churned.reduce((s, u) => s + u.total_volume, 0);
+    const totalChurned = data.backtest?.total_churned || 0;
+    const sumVolume = churned.reduce((s, u) => s + (u.total_volume || 0), 0);
     const avgVolume = sumVolume / Math.max(churned.length, 1) / 6;
     const avgAnnualRevenue = avgVolume * 12 * 0.02;
-    const interventionCost = Object.values(data.interventions).reduce((s, v) => s + v.cost, 0);
+    const interventionCost = Object.values(data.interventions || {}).reduce((s, v) => s + (v.cost || 0), 0);
 
     res.json({
       total_churned: totalChurned,
@@ -192,19 +189,12 @@ module.exports = function(app) {
   });
 
   app.get('/api/cohorts/dropout', (req, res) => {
-    res.json({
-      funnel: [
-        { step: 'App Install',       users: 120000, drop: 0 },
-        { step: 'Signup',            users: 89000,  drop: 31000 },
-        { step: 'KYC Start',         users: 72000,  drop: 17000 },
-        { step: 'KYC Upload',        users: 61000,  drop: 11000 },
-        { step: 'KYC Verified',      users: 55000,  drop: 6000 },
-        { step: '1st Transfer Init', users: 48000,  drop: 7000 },
-        { step: '1st Transfer Done', users: 42000,  drop: 6000 },
-        { step: '2nd Transfer',      users: 31000,  drop: 11000 },
-        { step: 'Regular (5+)',      users: 22000,  drop: 9000 },
-      ],
-    });
+    // Populated from Mixpanel funnels when available
+    if (mixpanelData.funnels?.onboarding) {
+      res.json({ funnel: mixpanelData.funnels.onboarding });
+    } else {
+      res.json({ funnel: [] });
+    }
   });
 
 };

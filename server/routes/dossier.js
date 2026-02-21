@@ -134,7 +134,7 @@ module.exports = function(app) {
     // Merge live data if available
     if (liveData.corridor_health?.rows?.length) {
       let total = 0, active = 0;
-      liveData.corridor_health.rows.forEach(r => { total += r.total_users; active += r.active_30d; });
+      liveData.corridor_health.rows.forEach(r => { total += Number(r.total_users) || 0; active += Number(r.active_30d) || 0; });
       exec.total_users = total;
       exec.active_30d = active;
       exec.churn_rate_baseline = total > 0 ? Math.round((1 - active / total) * 10000) / 10000 : exec.churn_rate_baseline;

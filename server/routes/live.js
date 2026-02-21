@@ -1,4 +1,4 @@
-const { data, liveData } = require('../services/cache');
+const { data, liveData, sentimentCache, riskAnalysisCache } = require('../services/cache');
 const { redshiftPool, runRedshiftQuery, refreshAllData } = require('../services/redshift');
 const { REFRESH_INTERVAL } = require('../config');
 
@@ -140,6 +140,29 @@ module.exports = function(app) {
       sources: liveData.refresh_status,
       redshift_connected: !!redshiftPool,
     });
+  });
+
+  // POST /api/cache/clear — Flush all in-memory caches
+  app.post('/api/cache/clear', (req, res) => {
+    // Reset liveData
+    liveData.early_warnings = null;
+    liveData.corridor_health = null;
+    liveData.monthly_trends = null;
+    liveData.partner_performance = null;
+    liveData.new_user_cohorts = null;
+    liveData.delivery = null;
+    liveData.pricing = null;
+    liveData.prediction_validation = null;
+    liveData.decagon_conversations = null;
+    liveData.backtest = null;
+    liveData.last_refresh = null;
+    liveData.refresh_status = {};
+
+    // Reset secondary caches
+    Object.keys(sentimentCache).forEach(k => delete sentimentCache[k]);
+    Object.keys(riskAnalysisCache).forEach(k => delete riskAnalysisCache[k]);
+
+    res.json({ status: 'cleared', timestamp: new Date().toISOString() });
   });
 
 };

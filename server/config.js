@@ -8,9 +8,9 @@ const CFG = {
   AI_KEY:                process.env.ANTHROPIC_API_KEY,
   MB_URL:                process.env.METABASE_URL,
   MB_KEY:                process.env.METABASE_API_KEY,
-  MOENGAGE_APP_ID:       process.env.MOENGAGE_APP_ID       || '95PNUHBSYSLLJZ22PEOFMKF2',
-  MOENGAGE_API_KEY:      process.env.MOENGAGE_API_KEY      || '3XMHJ83D2X4V',
-  MOENGAGE_DATA_API_KEY: process.env.MOENGAGE_DATA_API_KEY || 'Mj5JSGKcwYum9NKAGmGHJG_E',
+  MOENGAGE_APP_ID:       process.env.MOENGAGE_APP_ID,
+  MOENGAGE_API_KEY:      process.env.MOENGAGE_API_KEY,
+  MOENGAGE_DATA_API_KEY: process.env.MOENGAGE_DATA_API_KEY,
   MOENGAGE_API_URL:      process.env.MOENGAGE_API_URL      || 'https://api-01.moengage.com',
   MOENGAGE_PUSH_URL:     process.env.MOENGAGE_PUSH_URL,
   PG_HOST:               process.env.PG_HOST,
@@ -49,7 +49,7 @@ const MARGIN_PER_TXN = 8.50;
 const LTV_MULTIPLIER = 2.3;
 
 // API response pagination defaults
-const DEFAULT_LIMITS = { at_risk: 80, churned_sample: 40, healthy_sample: 40, early_warnings: 200, users: 200, intervention_log: 100, campaign_history: 50 };
+const DEFAULT_LIMITS = { at_risk: 500, churned_sample: 500, healthy_sample: 500, early_warnings: 500, users: 500, intervention_log: 100, campaign_history: 50 };
 
 // Revenue simulator fallbacks (used when playbook not found in DOMAIN.INTERVENTIONS)
 const SIMULATOR_DEFAULTS = { lift_rate: 0.10, cost_per_user: 1.00 };

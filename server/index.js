@@ -36,6 +36,9 @@ function createApp() {
 
   app.use(function(req, res, next) { res.set('Cache-Control', 'no-store'); next(); });
 
+  // Serve frontend
+  app.use(express.static(path.join(__dirname, '..', 'public')));
+
   // Register routes
   require('./routes/data')(app);
   require('./routes/live')(app);
