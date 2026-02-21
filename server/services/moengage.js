@@ -44,47 +44,63 @@ function moengagePushSignature(campaignName) {
     .digest('hex');
 }
 
-async function sendMoEngagePush(user, message, title, { reqId } = {}) {
-  const pushUrl = CFG.MOENGAGE_PUSH_URL || CFG.MOENGAGE_API_URL;
-  const campaignName = `churn_${user.risk_tier}_${Date.now()}`;
+async function sendMoEngagePush({ userIds, message, title, richImage, campaignName, reqId } = {}) {
+  const pushUrl = CFG.MOENGAGE_PUSH_URL || `${CFG.MOENGAGE_API_URL}`;
+  const name = campaignName || `churn_push_${Date.now()}`;
+
+  const androidPayload = {
+    title: title || 'Vance',
+    message,
+    defaultAction: { type: 'deeplinking', value: 'https://vance.onelink.me/DYot/0k53ax5c' },
+  };
+  const iosPayload = {
+    title: title || 'Vance',
+    message,
+    defaultAction: { type: 'deeplinking', value: 'https://vance.onelink.me/DYot/0k53ax5c' },
+  };
+  if (richImage) {
+    androidPayload.richContent = [{ type: 'image', value: richImage }];
+    iosPayload.richContent = [{ type: 'image', value: richImage }];
+  }
+
+  const isSingle = userIds.length === 1;
   const payload = {
-    app_id: CFG.MOENGAGE_APP_ID,
-    signature: moengagePushSignature(campaignName),
-    campaign_name: campaignName,
-    target_platform: ['ANDROID', 'IOS'],
-    target_type: 'customer_id',
-    target: [user.user_id],
-    delivery: { type: 'soon' },
-    ttl: 672,
-    ignore_fc: true,
-    high_priority: true,
-    payload: {
-      android: {
-        title: title || 'Vance',
-        message,
-        actions: [{ action_type: 'deepLink', value: 'https://vance.onelink.me/DYot/0k53ax5c' }],
-      },
-      ios: {
-        title: title || 'Vance',
-        alert: message,
-        actions: [{ action_type: 'deepLink', value: 'https://vance.onelink.me/DYot/0k53ax5c' }],
-      },
+    appId: CFG.MOENGAGE_APP_ID,
+    signature: moengagePushSignature(name),
+    campaignName: name,
+    targetPlatform: ['ANDROID', 'IOS'],
+    targetAudience: 'User',
+    targetUserAttributes: {
+      attribute: 'USER_ATTRIBUTE_UNIQUE_ID',
+      comparisonParameter: isSingle ? 'is' : 'in',
+      attributeValue: isSingle ? userIds[0] : userIds,
+    },
+    payload: { ANDROID: androidPayload, IOS: iosPayload },
+    campaignDelivery: { type: 'soon' },
+    advancedSettings: {
+      ttl: { ANDROID: 672 },
+      ignoreFC: 'true',
+      sendAtHighPriority: 'true',
     },
   };
 
+  const fullUrl = `${pushUrl}/v2/transaction/sendpush`;
+  const bodyStr = JSON.stringify(payload);
+  log.info('PUSH_REQ', { url: fullUrl, campaignName: name, userIds, targetAudience: 'User' });
+  log.info('PUSH_PAYLOAD', { body: bodyStr });
+
   const resp = await fetchWithRetry(
-    `${pushUrl}/v2/transaction/sendpush`,
+    fullUrl,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': moengageAuth(),
-      },
-      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' },
+      body: bodyStr,
     },
     { reqId }
   );
-  return resp.json();
+  const text = await resp.text();
+  log.info('PUSH_RESP', { httpStatus: resp.status, body: text });
+  try { return JSON.parse(text); } catch { return { status: resp.status, body: text || '(empty)' }; }
 }
 
 async function syncUserAttributes(userId, attrs, { reqId } = {}) {

@@ -182,7 +182,7 @@ module.exports = function(app) {
 
   // POST /api/moengage/engage — Single user intervention with cooldown protection
   app.post('/api/moengage/engage', async (req, res) => {
-    const { user_id, channel, message, title } = req.body;
+    const { user_id, channel, message, title, richImage } = req.body;
     const user = userIndex[user_id];
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -255,7 +255,14 @@ module.exports = function(app) {
         // Push notification if channel includes push
         let pushResult = null;
         if (usedChannel.toLowerCase().includes('push')) {
-          pushResult = await sendMoEngagePush(user, message || intervention.message, title || 'Vance', { reqId: req.id });
+          pushResult = await sendMoEngagePush({
+            userIds: [user.user_id],
+            message: message || intervention.message,
+            title: title || 'Vance',
+            richImage: richImage || undefined,
+            campaignName: `churn_${user.risk_tier}_${Date.now()}`,
+            reqId: req.id,
+          });
         }
 
         // Log intervention
@@ -295,7 +302,7 @@ module.exports = function(app) {
 
   // POST /api/moengage/bulk — Bulk sync + trigger with cooldown filtering
   app.post('/api/moengage/bulk', async (req, res) => {
-    const { tier, max_count, channel } = req.body;
+    const { tier, max_count, channel, title, message, richImage } = req.body;
     const targetTier = validateTier(tier) || 'CRITICAL';
     const maxUsers = validateLimit(max_count, 500) || 100;
     const allCandidates = selectTargetUsers(userIndex, targetTier, maxUsers);
@@ -350,6 +357,20 @@ module.exports = function(app) {
         tier: targetTier, users_targeted: syncResult.synced, channel: usedChannel,
       }, { reqId: req.id });
 
+      // Send push for push channels (batch via targetUserAttributes 'in', max 50)
+      let pushResult = null;
+      if (usedChannel.toLowerCase().includes('push')) {
+        const ids = targetUsers.map(u => u.user_id);
+        pushResult = await sendMoEngagePush({
+          userIds: ids.slice(0, 50),
+          message: message || 'You have exclusive offers waiting',
+          title: title || 'Vance',
+          richImage: richImage || undefined,
+          campaignName: `bulk_${targetTier}_${Date.now()}`,
+          reqId: req.id,
+        });
+      }
+
       // Log interventions
       targetUsers.forEach(u => {
         interventionLog.push({ id: interventionLog.length + 1, user_id: u.user_id, channel: usedChannel, tier: targetTier, triggered_at: now.toISOString(), status: 'sent', outcome: 'pending', source: 'moengage_bulk' });
@@ -394,6 +415,7 @@ module.exports = function(app) {
         errors: syncResult.errors, skipped_cooldown: bulkSkipped.length,
         channel: usedChannel,
         sample_users: targetUsers.slice(0, 5).map(u => ({ user_id: u.user_id, score: u.risk_score })),
+        push: pushResult,
         s3: s3Result, campaign_id: campaignId,
       });
     } catch (e) {

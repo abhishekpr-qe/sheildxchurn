@@ -629,6 +629,7 @@ def main():
             'detection_p0p1': round(detection, 4),
         },
         'cohorts': cohorts,
+        'all_users': all_users_slim,
         'at_risk_users': at_risk_users,
         'churned_sample': churned_sample,
         'healthy_sample': healthy_sample,

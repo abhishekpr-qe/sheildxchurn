@@ -30,15 +30,16 @@ if (fs.existsSync(realTxnPath)) {
   log.info('Real data loaded', { users: realData.summary.total_users, txns: realData.summary.total_txns });
 }
 
-// User index (lookup by user_id)
+// User index (lookup by user_id) — prefer all_users for full coverage
 let userIndex = {};
 function rebuildUserIndex() {
   userIndex = {};
-  [
+  const source = realData?.all_users || [
     ...(data.at_risk_users  || []),
     ...(data.churned_sample || []),
     ...(data.healthy_sample || []),
-  ].forEach(u => {
+  ];
+  source.forEach(u => {
     if (!userIndex[u.user_id]) userIndex[u.user_id] = u;
   });
 }
