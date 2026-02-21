@@ -30,6 +30,7 @@ const CFG = {
   GEMINI_API_KEY:        process.env.GEMINI_API_KEY,
   ENABLE_GEMINI:         process.env.ENABLE_GEMINI !== 'false',
   OPENROUTER_KEY:        process.env.OPENROUTER_KEY,
+  GITHUB_TOKEN:          process.env.GITHUB_TOKEN,
 };
 
 const REFRESH_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours

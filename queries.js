@@ -413,9 +413,12 @@ CREATE TABLE IF NOT EXISTS churn_llm_usage (
 CREATE INDEX IF NOT EXISTS idx_llm_usage_created ON churn_llm_usage(created_at);
 `;
 
-// DDL: Add rule_version column if missing (safe for existing tables)
+// DDL: Add rule_version + top_reasons columns if missing (safe for existing tables)
 const DDL_ADD_RULE_VERSION = `
 ALTER TABLE churn_predictions ADD COLUMN IF NOT EXISTS rule_version VARCHAR(20);
+`;
+const DDL_ADD_TOP_REASONS = `
+ALTER TABLE churn_predictions ADD COLUMN IF NOT EXISTS top_reasons VARCHAR(200);
 `;
 
 // All queries with metadata
@@ -439,6 +442,7 @@ module.exports = {
   DDL_LLM_USAGE_TABLE_RS,
   DDL_LLM_USAGE_TABLE_PG,
   DDL_ADD_RULE_VERSION,
+  DDL_ADD_TOP_REASONS,
   QUERY_TRANSACTIONS,
   QUERY_DELIVERY,
   QUERY_PRICING,
