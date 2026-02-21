@@ -1,23 +1,17 @@
-# ShieldXChurn Rule Engine — Config-driven signal evaluation
-# Version tracked for prediction traceability (stored in churn_predictions.rule_version)
-version: "1.0.0"
-
+version: 1.0.1
 scoring:
   max_reasons: 3
   min_weight_to_flag: 0.1
-
 signal_rules:
-  # ── Inactivity ──
   - id: inactivity_30d
     signal: days_since_last
     operator: gte
     threshold: 30
-    weight: 0.25
+    weight: 0.325
     severity: high
     reason_code: inactivity
     intervention: re_engagement
-    description_template: "Inactive for {value} days"
-
+    description_template: Inactive for {value} days
   - id: inactivity_60d
     signal: days_since_last
     operator: gte
@@ -26,19 +20,16 @@ signal_rules:
     severity: critical
     reason_code: inactivity
     intervention: re_engagement
-    description_template: "Dormant — no activity for {value} days"
-
-  # ── Failure Rate ──
+    description_template: Dormant — no activity for {value} days
   - id: high_fail_rate
     signal: fail_rate
     operator: gte
     threshold: 0.15
-    weight: 0.30
+    weight: 0.39
     severity: high
     reason_code: high_failure_rate
     intervention: support_callback
-    description_template: "Failure rate {value_pct}%"
-
+    description_template: Failure rate {value_pct}%
   - id: error_rate_high
     signal: error_rate
     operator: gte
@@ -47,18 +38,16 @@ signal_rules:
     severity: high
     reason_code: high_failure_rate
     intervention: support_callback
-    description_template: "Error rate {value_pct}%"
-
+    description_template: Error rate {value_pct}%
   - id: api_errors_spike
     signal: api_errors_l30
     operator: gte
     threshold: 3
-    weight: 0.20
+    weight: 0.2
     severity: medium
     reason_code: api_errors
     intervention: support_callback
-    description_template: "{value} API errors in last 30 days"
-
+    description_template: '{value} API errors in last 30 days'
   - id: api_timeouts
     signal: api_timeouts_l30
     operator: gte
@@ -67,50 +56,43 @@ signal_rules:
     severity: medium
     reason_code: api_errors
     intervention: support_callback
-    description_template: "{value} API timeouts in last 30 days"
-
+    description_template: '{value} API timeouts in last 30 days'
   - id: errors_before_first
     signal: errors_before_first_order
     operator: gte
     threshold: 2
-    weight: 0.20
+    weight: 0.2
     severity: medium
     reason_code: early_friction
     intervention: support_callback
-    description_template: "{value} errors before first order"
-
-  # ── Engagement Decline ──
+    description_template: '{value} errors before first order'
   - id: session_freq_drop
     signal: session_freq_ratio
     operator: lte
     threshold: 0.5
-    weight: 0.20
+    weight: 0.2
     severity: medium
     reason_code: declining_engagement
     intervention: re_engagement
-    description_template: "App usage dropped {drop_pct}% vs prior month"
-
+    description_template: App usage dropped {drop_pct}% vs prior month
   - id: tx_freq_drop
     signal: tx_frequency_ratio
     operator: lte
     threshold: 0.5
-    weight: 0.20
+    weight: 0.2
     severity: medium
     reason_code: declining_engagement
     intervention: re_engagement
-    description_template: "Transaction frequency dropped {drop_pct}%"
-
-  # ── Conversion Friction ──
+    description_template: Transaction frequency dropped {drop_pct}%
   - id: low_conversion
     signal: tx_conversion_rate
     operator: lte
     threshold: 0.5
-    weight: 0.20
+    weight: 0.2
     severity: medium
     reason_code: low_conversion
     intervention: speed_guarantee
-    description_template: "Only {value_pct}% of transfers completed"
-
+    description_template: Only {value_pct}% of transfers completed
   - id: high_browsing
     signal: browsing_ratio
     operator: gte
@@ -119,8 +101,7 @@ signal_rules:
     severity: medium
     reason_code: pricing_sensitivity
     intervention: loyalty_discount
-    description_template: "High browsing ({value}x) but low conversion"
-
+    description_template: High browsing ({value}x) but low conversion
   - id: started_never_completed
     signal: started_never_completed
     operator: eq
@@ -129,8 +110,7 @@ signal_rules:
     severity: high
     reason_code: abandoned_transfer
     intervention: priority_queue
-    description_template: "Started transfer but never completed"
-
+    description_template: Started transfer but never completed
   - id: deep_browse_no_send
     signal: single_session_deep_funnel
     operator: eq
@@ -139,9 +119,7 @@ signal_rules:
     severity: medium
     reason_code: pricing_sensitivity
     intervention: loyalty_discount
-    description_template: "Deep funnel browsing in single session, no send"
-
-  # ── Transaction Patterns ──
+    description_template: Deep funnel browsing in single session, no send
   - id: one_and_done
     signal: is_one_and_done
     operator: eq
@@ -150,19 +128,16 @@ signal_rules:
     severity: high
     reason_code: one_and_done
     intervention: re_engagement
-    description_template: "Single transaction user — never returned"
-
+    description_template: Single transaction user — never returned
   - id: intent_blocked
     signal: high_intent_no_completion
     operator: eq
     threshold: 1
-    weight: 0.30
+    weight: 0.3
     severity: critical
     reason_code: intent_blocked
     intervention: priority_queue
-    description_template: "High intent but no completions — likely friction"
-
-  # ── Support Signals ──
+    description_template: High intent but no completions — likely friction
   - id: support_seeking
     signal: help_opens_l30
     operator: gte
@@ -171,50 +146,43 @@ signal_rules:
     severity: medium
     reason_code: support_seeking
     intervention: support_callback
-    description_template: "Opened help {value} times recently"
-
-  # ── Stuck Transactions ──
+    description_template: Opened help {value} times recently
   - id: stuck_rate_high
     signal: stuck_rate
     operator: gte
     threshold: 0.1
-    weight: 0.25
+    weight: 0.325
     severity: high
     reason_code: stuck_transaction
     intervention: priority_queue
-    description_template: "Stuck rate {value_pct}%"
-
-  # ── Live Redshift Signals ──
+    description_template: Stuck rate {value_pct}%
   - id: live_frequency_drop
     signal: signal_frequency_drop
     operator: eq
     threshold: 1
-    weight: 0.20
+    weight: 0.2
     severity: high
     reason_code: frequency_decline
     intervention: re_engagement
-    description_template: "Frequency dropped to zero this month"
-
+    description_template: Frequency dropped to zero this month
   - id: live_volume_drop
     signal: signal_volume_drop
     operator: eq
     threshold: 1
-    weight: 0.20
+    weight: 0.2
     severity: high
     reason_code: volume_decline
     intervention: loyalty_discount
-    description_template: "Volume dropped >50% month-over-month"
-
+    description_template: Volume dropped >50% month-over-month
   - id: live_stuck_now
     signal: signal_stuck_now
     operator: eq
     threshold: 1
-    weight: 0.30
+    weight: 0.3
     severity: critical
     reason_code: stuck_transaction
     intervention: priority_queue
-    description_template: "Currently has stuck transaction(s)"
-
+    description_template: Currently has stuck transaction(s)
   - id: live_going_inactive
     signal: signal_going_inactive
     operator: eq
@@ -223,9 +191,7 @@ signal_rules:
     severity: high
     reason_code: going_inactive
     intervention: re_engagement
-    description_template: "Active last month, zero activity this month"
-
-  # ── KYC / Onboarding ──
+    description_template: Active last month, zero activity this month
   - id: kyc_incomplete
     signal: kyc_completed_no_order
     operator: eq
@@ -234,36 +200,31 @@ signal_rules:
     severity: medium
     reason_code: kyc_no_order
     intervention: re_engagement
-    description_template: "Completed KYC but never placed an order"
-
+    description_template: Completed KYC but never placed an order
   - id: onboarding_stalled
     signal: onboarding_step_reached
     operator: lte
     threshold: 3
-    weight: 0.10
+    weight: 0.1
     severity: low
     reason_code: onboarding_stalled
     intervention: re_engagement
-    description_template: "Stalled at onboarding step {value}"
-
-  # ── Delivery Speed ──
+    description_template: Stalled at onboarding step {value}
   - id: slow_delivery
     signal: avg_delivery_min
     operator: gte
     threshold: 60
-    weight: 0.15
+    weight: 0.195
     severity: medium
     reason_code: slow_delivery
     intervention: speed_guarantee
-    description_template: "Average delivery {value} minutes"
-
-  # ── New User Risk ──
+    description_template: Average delivery {value} minutes
   - id: new_user_dropout
     signal: days_since_first_event
     operator: lte
     threshold: 30
-    weight: 0.10
+    weight: 0.1
     severity: low
     reason_code: new_user_risk
     intervention: re_engagement
-    description_template: "New user ({value} days) — critical retention window"
+    description_template: New user ({value} days) — critical retention window
