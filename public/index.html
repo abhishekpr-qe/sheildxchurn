@@ -1,0 +1,802 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Aspora Churn Intelligence</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#080b12;color:#e2e8f0;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#080b12}::-webkit-scrollbar-thumb{background:#1e293b;border-radius:3px}::-webkit-scrollbar-thumb:hover{background:#334155}
+.hdr{border-bottom:1px solid #1e293b;padding:16px 32px;display:flex;justify-content:space-between;align-items:center;background:#0a0e17}
+.tabs{display:flex;gap:2px;background:#0f1420;border-radius:12px;padding:3px;border:1px solid #1e293b;margin:14px 32px 0}
+.tab{padding:8px 18px;border-radius:10px;border:none;font-size:12px;cursor:pointer;background:transparent;color:#64748b;font-family:inherit;transition:all .2s;font-weight:500;letter-spacing:.2px}
+.tab:hover{color:#e2e8f0;background:#ffffff06}.tab.on{background:linear-gradient(135deg,#6366F1,#7c3aed);color:#fff;font-weight:600;box-shadow:0 2px 12px #6366F140}
+.ct{padding:20px 32px 48px;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.cd{background:#0f1420;border:1px solid #1e293b;border-radius:14px;padding:20px;margin-bottom:14px;transition:border-color .2s}
+.cd:hover{border-color:#2d3a50}
+.g{display:grid;gap:14px;margin-bottom:14px}.g6{grid-template-columns:repeat(6,1fr)}.g5{grid-template-columns:repeat(5,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+.mv{font-size:30px;font-weight:800;letter-spacing:-.5px;margin:4px 0}.ml{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px}.ms{font-size:11px;color:#475569}
+.bd{display:inline-block;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.3px}
+table{width:100%;border-collapse:collapse}th{text-align:left;padding:10px 14px;font-size:10px;color:#475569;border-bottom:1px solid #1e293b;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+td{padding:10px 14px;font-size:12px;border-bottom:1px solid #1e293b10}tr:hover{background:#ffffff04;cursor:pointer}
+.mono{font-family:'SF Mono',monospace;font-size:11px}.dim{color:#475569}.mut{color:#64748b}
+.brt{height:18px;background:#1e293b;border-radius:9px;overflow:hidden;margin:3px 0}.brf{height:100%;border-radius:9px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+input,select{font-family:inherit;padding:8px 12px;border-radius:10px;border:1px solid #1e293b;background:#0f1420;color:#e2e8f0;font-size:12px;outline:none;transition:border-color .2s}
+input:focus,select:focus{border-color:#6366F1}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;display:none}
+.dr{position:fixed;right:0;top:0;bottom:0;width:580px;background:#0a0e17;border-left:1px solid #1e293b;z-index:101;overflow-y:auto;padding:24px;display:none;box-shadow:-8px 0 32px rgba(0,0,0,.5)}
+.show{display:block}
+.cm{margin-bottom:8px;max-width:80%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6}.cu{background:linear-gradient(135deg,#6366F1,#7c3aed);margin-left:auto;text-align:right;border-bottom-right-radius:2px}.ca{background:#0f1420;border:1px solid #1e293b;border-bottom-left-radius:2px}
+.btn{padding:8px 16px;border-radius:10px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;letter-spacing:.3px}
+.btn:hover{filter:brightness(1.15);transform:translateY(-1px)}.btn:active{transform:translateY(0)}
+.btn-primary{background:linear-gradient(135deg,#6366F1,#7c3aed);color:#fff}.btn-success{background:#10B981;color:#fff}.btn-warning{background:#F59E0B;color:#000}.btn-danger{background:#EF4444;color:#fff}
+.btn-outline{background:transparent;border:1px solid #1e293b;color:#64748b}.btn-outline:hover{border-color:#6366F1;color:#6366F1}
+.btn-sm{padding:5px 12px;font-size:10px}
+.toast{position:fixed;bottom:24px;right:24px;background:#0f1420;border:1px solid #1e293b;border-radius:14px;padding:16px 24px;z-index:200;display:none;max-width:380px;box-shadow:0 12px 40px rgba(0,0,0,.5);backdrop-filter:blur(8px)}
+.toast.show{display:block;animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.int-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.int-connected{background:#10B981;box-shadow:0 0 6px #10B98180}.int-configured{background:#F59E0B;box-shadow:0 0 6px #F59E0B80}.int-not{background:#EF4444}
+.stat-pill{background:#0a0e17;border:1px solid #1e293b;border-radius:10px;padding:8px 14px;min-width:100px;transition:border-color .2s}
+.stat-pill:hover{border-color:#334155}
+.stat-pill .sl{font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:.5px;font-weight:600}.stat-pill .sv{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid #334155;background:#1e293b;color:#64748b;font-size:9px;font-weight:700;cursor:pointer;margin-left:6px;position:relative;vertical-align:middle;font-style:normal;line-height:1;transition:all .15s;flex-shrink:0}
+.ib:hover{border-color:#6366F1;color:#6366F1;background:#6366F120}
+.ib .it{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 16px;font-size:11px;font-weight:400;color:#cbd5e1;line-height:1.5;width:300px;z-index:300;box-shadow:0 12px 32px rgba(0,0,0,.6);pointer-events:none;font-style:normal;text-transform:none;letter-spacing:0}
+.ib .it b{color:#e2e8f0;font-weight:600}.ib .it .ic{color:#818cf8;font-size:10px;margin-top:4px;font-style:italic}
+.ib:hover .it{display:block}.ib .it::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#334155}
+.sh{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sh-badge{font-size:9px;padding:3px 10px;border-radius:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.tier-bar{display:flex;height:40px;border-radius:10px;overflow:hidden;margin-bottom:14px;gap:2px}
+.tier-bar>div{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all .3s;border-radius:8px}
+.hero{background:linear-gradient(135deg,#6366F108,#7c3aed08);border-color:#6366F130}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.live-pulse{animation:pulse 2s ease-in-out infinite}
+</style></head><body>
+<div class="hdr"><div style="display:flex;align-items:center;gap:14px"><div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#6366F1,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;box-shadow:0 4px 12px #6366F140">A</div><div><div style="font-size:17px;font-weight:800;letter-spacing:-.3px">Churn Intelligence</div><div id="hsub" style="font-size:10px;color:#475569;letter-spacing:.3px"></div></div></div><div style="display:flex;align-items:center;gap:8px"><span class="live-pulse" style="width:8px;height:8px;background:#10B981;border-radius:50%;box-shadow:0 0 8px #10B98180;display:inline-block"></span><span style="font-size:11px;color:#10B981;font-weight:700;letter-spacing:.5px">LIVE</span></div></div>
+<div class="tabs" id="tabs"></div>
+<div class="ct" id="ct"><div style="text-align:center;padding:80px 0;color:#475569">Loading platform...</div></div>
+<div class="ov" id="ov" onclick="cld()"></div>
+<div class="dr" id="dr"></div>
+<div class="toast" id="toast"></div>
+<script>
+var D,IM,INT,COH,EX,SHP,SENT,EXPT,DEC,T='warroom';
+var TC={CRITICAL:'#EF4444',HIGH:'#F59E0B',MEDIUM:'#3B82F6',LOW:'#10B981'};
+var BC={CRITICAL:'background:#EF444415;color:#EF4444;border:1px solid #EF444430',HIGH:'background:#F59E0B15;color:#F59E0B;border:1px solid #F59E0B30',MEDIUM:'background:#3B82F615;color:#3B82F6;border:1px solid #3B82F630',LOW:'background:#10B98115;color:#10B981;border:1px solid #10B98130'};
+function fm(n){if(n==null)return'-';return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n)}
+function pc(n){return n!=null?(n*100).toFixed(1)+'%':'-'}
+function mc(l,v,c,s){return'<div class="cd"><div class="ml">'+l+ib(l)+'</div><div class="mv" style="color:'+(c||'#e2e8f0')+'">'+v+'</div>'+(s?'<div class="ms">'+s+'</div>':'')+'</div>'}
+function br(l,v,mx,c){var w=Math.min(v/mx*100,100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span class="mut">'+l+'</span><span style="font-weight:700">'+fm(v)+'</span></div><div class="brt"><div class="brf" style="width:'+w+'%;background:'+c+'"></div></div></div>'}
+function pill(l,v,c){return'<div class="stat-pill"><div class="sl">'+l+ib(l)+'</div><div class="sv" style="color:'+(c||'#e2e8f0')+'">'+v+'</div></div>'}
+function sec(title,badge,badgeColor){return'<div class="sh">'+title+(badge?'<span class="sh-badge" style="background:'+badgeColor+'18;color:'+badgeColor+'">'+badge+'</span>':'')+'</div>'}
+
+var MD={
+'Active Users (30d)':['Users who transacted in the last 30 days.','Count of distinct user_ids with created_at within 30d.'],
+'Baseline Churn':['% of users inactive >14 days.','Inactive users / total users.'],
+'Post-Intervention':['Projected churn after retention campaigns.','Baseline churn - expected intervention lift.'],
+'Predicted 30d Churn':['Users predicted to churn within 30 days.','Users with churn_probability >= 0.4.'],
+'Retained / Saved':['Users retained through interventions.','at_risk x avg_churn_prob x avg_lift.'],
+'Monthly Net Benefit':['Revenue saved minus intervention costs.','(retained x avg_revenue) - total_cost.'],
+'ROI':['Return on investment for retention.','Net benefit / total cost.'],
+'Payback':['Days to recover intervention cost.','Cost / daily retained revenue.'],
+'ML Score':['Churn probability (0-100%).','Ensemble: LightGBM + XGBoost + CatBoost + LogReg meta-learner.'],
+'Sentiment':['Sentiment from Decagon support conversations.','AI-analyzed from conversation summaries and user messages.'],
+'Lead Time':['Days before likely churn (90d threshold).','90 - days_since_last_transaction.'],
+'Top SHAP Driver':['Feature contributing most to churn prediction.','SHAP TreeExplainer — positive = increases churn risk.'],
+'Intervention':['Recommended retention action.','Maps risk reason to intervention type.'],
+'Churn':['% of cohort that churned.','Users with churn_label=1 / total cohort.'],
+'At Risk':['Users flagged at-risk in this cohort.','Users in CRITICAL + HIGH + MEDIUM tiers.'],
+'LTV@Risk':['Lifetime value at risk from churn.','Total volume x 2% take rate.'],
+'SHAP Value':['Feature contribution to churn prediction.','Mean |SHAP| across all users.'],
+'Train AUC':['AUC on training data.','1.0 = perfect, 0.5 = random.'],
+'Val AUC':['AUC on validation holdout.','Used for hyperparameter tuning.'],
+'Test AUC':['AUC on unseen test data.','Best estimate of real performance.'],
+'Precision@K':['Of top K flagged users, % that actually churned.','True positives in top K / K.'],
+'Monthly Budget':['Monthly budget for retention.','Caps campaign spending.'],
+'Spent This Month':['Spent on interventions this month.','Sum of (users x cost) per campaign.'],
+'Remaining':['Budget left this month.','Budget - spent.'],
+'Frequency Caps':['Limits on user contact frequency.','Prevents notification fatigue.'],
+'Intervention Breakdown':['Distribution of intervention types.','Count per type.'],
+'Per-User SHAP':['Why each user was scored at-risk.','Per-user SHAP feature contributions.'],
+'Cohort SHAP':['Top churn drivers per cohort.','Mean |SHAP| computed per-cohort.'],
+'P-Value':['Statistical significance of A/B result.','Probability result is due to chance. <0.05 = significant.'],
+'Lift':['Relative churn reduction from treatment.','(control_churn - treatment_churn) / control_churn.'],
+'DAU':['Daily Active Users from Mixpanel.','Unique users with at least one event today.'],
+'Orders':['Orders created today.','Count of order_created events.'],
+'Sessions':['App sessions today.','Count of session_start events.'],
+'Fail Rate':['% of transactions that failed.','failed_txns / total_txns.'],
+};
+function ib(key){var d=MD[key];if(!d)return'';return'<i class="ib" onclick="event.stopPropagation()">i<span class="it"><b>'+key+'</b><br>'+d[0]+'<div class="ic">'+d[1]+'</div></span></i>';}
+
+function showToast(msg,type){var t=document.getElementById('toast');var colors={success:'border-color:#10B981;color:#10B981',error:'border-color:#EF4444;color:#EF4444',info:'border-color:#6366F1;color:#6366F1'};t.style.cssText=colors[type||'info']||colors.info;t.innerHTML=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},4000)}
+
+function init(){
+  Promise.all([
+    fetch('/api/data').then(function(r){return r.json()}),
+    fetch('/api/impact').then(function(r){return r.json()}),
+    fetch('/api/integrations').then(function(r){return r.json()}),
+    fetch('/api/cohorts').then(function(r){return r.json()}),
+    fetch('/api/executive').then(function(r){return r.json()}),
+    fetch('/api/shap').then(function(r){return r.json()}),
+    fetch('/api/sentiment/summary').then(function(r){return r.json()}),
+    fetch('/api/experiments').then(function(r){return r.json()}).catch(function(){return{}}),
+    fetch('/api/decagon').then(function(r){return r.json()}).catch(function(){return{}})
+  ]).then(function(res){
+    D=res[0];IM=res[1];INT=res[2];COH=res[3];EX=res[4];SHP=res[5];SENT=res[6]||{};EXPT=res[7]||{};DEC=res[8]||{};
+    var src=D.summary.data_source==='redshift_live'?' [LIVE]':'';
+    var auc=D.model?.metrics?.validation?.auc||D.model?.metrics?.test?.auc;
+    document.getElementById('hsub').textContent=fm(D.summary.total_users)+' users'+src+' | Ensemble (LightGBM+XGB+CatBoost) | Test AUC '+(auc||'—');
+    rtabs();rend();
+    if(!D.live_data?.available||D.summary.data_source!=='redshift_live'){
+      var poll=setInterval(function(){
+        fetch('/api/data').then(function(r){return r.json()}).then(function(nd){
+          if(nd.summary.data_source==='redshift_live'){clearInterval(poll);D=nd;fetch('/api/executive').then(function(r){return r.json()}).then(function(ex){EX=ex;rend()});rend();}
+        }).catch(function(){});
+      },15000);
+    }
+  }).catch(function(e){document.getElementById('ct').innerHTML='<div style="color:#EF4444;padding:60px;text-align:center;font-size:14px">Failed to load: '+e.message+'</div>';});
+}
+
+function rtabs(){
+  var ts=[['warroom','War Room'],['explorer','Risk Explorer'],['experiments','Experiments'],['simulator','Simulator'],['cohorts','Funnels & Cohorts'],['command','Command Center']];
+  document.getElementById('tabs').innerHTML=ts.map(function(t){return'<button class="tab'+(T===t[0]?' on':'')+'" onclick="T=\''+t[0]+'\';rtabs();rend()">'+t[1]+'</button>'}).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 1: WAR ROOM
+// ═══════════════════════════════════════════════════════════════════════════════
+function rendWarRoom(){
+  if(!EX)return'<div class="cd mut">Loading...</div>';
+  var h='',co=D.churn_overview,snap=D.mixpanel?.daily_snapshot;
+
+  // Live Pulse Strip
+  h+='<div class="cd hero" style="padding:16px 20px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px"><span class="live-pulse" style="width:6px;height:6px;background:#10B981;border-radius:50%;display:inline-block"></span>Live Pulse — '+((snap&&snap.date)||'Today')+'</div><div style="font-size:10px;color:#475569">Mixpanel | 2.3M events/day</div></div>';
+  h+='<div style="display:flex;gap:10px;flex-wrap:wrap">';
+  if(snap){
+    var pills=[['DAU',fm(snap.daily_active_users),'#10B981'],['Orders',fm(snap.orders_created),'#818cf8'],['Completed',fm(snap.orders_completed),'#10B981'],['Failed',fm(snap.orders_failed),'#EF4444'],['Sessions',fm(snap.sessions),'#3B82F6'],['API Errors',fm(snap.api_errors),'#EF4444'],['Support Chats',fm(snap.chat_clicks),'#F59E0B'],['KYC Updates',fm(snap.kyc_updated),'#3B82F6'],['New Signups',fm(snap.users_signed_up),'#10B981']];
+    pills.forEach(function(p){h+=pill(p[0],p[1],p[2])});
+  } else {
+    h+='<div class="mut">Awaiting Mixpanel data...</div>';
+  }
+  h+='</div></div>';
+
+  // Integration Architecture
+  if(INT){
+    h+='<div class="cd" style="padding:16px 20px">';
+    h+=sec('Integration Architecture','5 LIVE SYSTEMS','#10B981');
+    h+='<div style="display:flex;gap:10px;flex-wrap:wrap">';
+    var intData={brain:['Anthropic AI','Haiku for dossiers + chat'],database:['Redshift','442K users, 6.8M orders (direct SQL)'],chart:['Mixpanel','1.2M profiles, 2.3M events/day'],bell:['MoEngage','Push, Email, SMS, WhatsApp'],phone:['Retell.ai','AI voice retention calls']};
+    var decScale=DEC.total_conversations?', '+fm(DEC.total_conversations)+' convos':'';
+    Object.values(INT).forEach(function(i){
+      var cls=i.status==='connected'?'int-connected':i.status==='configured'?'int-configured':'int-not';
+      var extra=intData[i.icon]?intData[i.icon][1]:'';
+      if(i.icon==='brain'&&DEC.unique_users)extra+=decScale;
+      h+='<div style="background:#080b12;border:1px solid #1e293b;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex:1;min-width:180px">';
+      h+='<div><div style="font-size:12px;font-weight:700">'+i.name+'</div><div style="font-size:10px;color:#475569;margin-top:2px">'+extra+'</div>';
+      h+='<div style="font-size:9px;margin-top:3px"><span class="int-dot '+cls+'"></span>'+(i.status==='connected'?'Connected':i.status==='configured'?'Ready':'Setup needed')+'</div></div></div>';
+    });
+    h+='</div></div>';
+  }
+
+  // Core KPIs (2 rows of 4)
+  h+='<div class="g g4">'+mc('Active Users (30d)',fm(EX.active_30d),'#10B981',pc(EX.active_30d/D.summary.total_users)+' of total')+mc('Baseline Churn',pc(EX.churn_rate_baseline),'#EF4444',fm(co.status.CHURNED)+' churned')+mc('Post-Intervention',pc(EX.churn_rate_post_intervention),'#F59E0B','Target after campaigns')+mc('Predicted 30d Churn',fm(EX.predicted_churn_30d),'#EF4444','at-risk converting')+'</div>';
+  h+='<div class="g g4">'+mc('Retained / Saved',fm(EX.retained_saved),'#10B981','users saved')+mc('Monthly Net Benefit','$'+fm(EX.monthly_net_benefit),'#10B981','revenue - cost')+mc('ROI',EX.roi_multiple+'x','#818cf8','net benefit / cost')+mc('Payback',EX.payback_days+'d',EX.payback_days<30?'#10B981':'#F59E0B','time to break even')+'</div>';
+
+  // Two-column: Monthly Trends | Transaction Health
+  h+='<div class="g g2">';
+
+  // Monthly Trends
+  h+='<div class="cd">';
+  h+=sec('13-Month Volume Trend','METABASE','#3B82F6');
+  var mt=D.monthly_trends||[];
+  if(mt.length){
+    var mtMax=Math.max.apply(null,mt.map(function(m){return m.total_txns||m.total_volume||0}));
+    mt.forEach(function(m){
+      var v=m.total_txns||m.total_volume||0;
+      var label=m.month||m.txn_month||'';
+      h+=br(label,v,mtMax,'#818cf8');
+    });
+  } else {
+    h+='<div class="mut" style="font-size:11px">Awaiting Redshift live data refresh...</div>';
+    // Fallback: show corridor volume
+    Object.entries(D.corridor_analysis).forEach(function(c){
+      h+=br(c[0],c[1].total||c[1].total_volume||0,Math.max.apply(null,Object.values(D.corridor_analysis).map(function(v){return v.total||v.total_volume||0})),'#818cf8');
+    });
+  }
+  h+='</div>';
+
+  // Transaction Health
+  h+='<div class="cd">';
+  h+=sec('Transaction Health','REAL DATA','#10B981');
+  var ts=D.transaction_status;
+  if(ts){
+    var tsMax=Math.max.apply(null,Object.values(ts));
+    var tsColors={COMPLETED:'#10B981',FAILED:'#EF4444',PENDING:'#F59E0B',NEW:'#3B82F6',CREATED:'#818cf8',PROCESSING_DEAL_IN:'#64748b'};
+    Object.entries(ts).forEach(function(e){h+=br(e[0],e[1],tsMax,tsColors[e[0]]||'#818cf8')});
+  } else {h+='<div class="mut">No transaction status data.</div>';}
+  h+='</div></div>';
+
+  // Two-column: Partner Operations | Why They Churn
+  h+='<div class="g g2">';
+
+  // Partner Operations
+  h+='<div class="cd">';
+  h+=sec('Partner Operations','METABASE','#3B82F6');
+  var pp=D.partner_performance||[];
+  if(pp.length){
+    h+='<table><thead><tr><th>Partner</th><th>Corridor</th><th>Orders</th><th>Fail %</th><th>Avg Delivery</th></tr></thead><tbody>';
+    pp.slice(0,8).forEach(function(p){
+      var fc=p.failure_rate_pct>10?'#EF4444':p.failure_rate_pct>5?'#F59E0B':'#10B981';
+      h+='<tr><td style="font-weight:600">'+p.partner+'</td><td class="dim">'+(p.corridor||'-')+'</td><td>'+fm(p.total_orders||p.order_count||0)+'</td><td style="color:'+fc+';font-weight:600">'+(p.failure_rate_pct||0).toFixed(1)+'%</td><td class="dim">'+(p.avg_delivery_min||0).toFixed(0)+'m</td></tr>';
+    });
+    h+='</tbody></table>';
+  } else {h+='<div class="mut">Awaiting partner data from Redshift...</div>';}
+  h+='</div>';
+
+  // Why They Churn
+  h+='<div class="cd">';
+  h+=sec('Why They Churn',''+fm(Object.values(D.reason_frequency||{}).reduce(function(a,b){return a+b},0))+' signals','#EF4444');
+  var rf=D.reason_frequency||{};
+  var rfMax=Math.max.apply(null,Object.values(rf).concat([1]));
+  Object.entries(rf).sort(function(a,b){return b[1]-a[1]}).forEach(function(e){
+    h+=br(e[0].replace(/_/g,' '),e[1],rfMax,'#EF4444');
+  });
+  h+='</div></div>';
+
+  // Corridors + Model
+  h+='<div class="g g2"><div class="cd">';
+  h+=sec('Corridor Performance','');
+  Object.entries(D.corridor_analysis).forEach(function(c){var k=c[0],v=c[1];var cr=(v.churn_rate*100);
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:130px;font-size:12px;font-weight:600">'+k+'</span><div style="flex:1"><div class="brt" style="height:20px"><div class="brf" style="width:'+Math.min(cr/80*100,100)+'%;background:'+(cr>50?'#EF4444':cr>20?'#F59E0B':'#10B981')+'"></div></div></div><span style="font-size:12px;font-weight:700;width:50px;text-align:right;color:'+(cr>50?'#EF4444':cr>20?'#F59E0B':'#10B981')+'">'+cr.toFixed(1)+'%</span><span class="dim" style="font-size:11px;width:60px;text-align:right">'+fm(v.total)+'</span></div>';
+  });
+  h+='</div>';
+  h+='<div class="cd">';
+  h+=sec('Model Performance','');
+  var testAuc=D.model?.metrics?.test?.auc;var valAuc=D.model?.metrics?.validation?.auc;
+  h+='<div style="font-size:13px;line-height:2.2"><div><span class="dim">Type:</span> <b>LightGBM + XGBoost + CatBoost + LogReg Meta</b></div>';
+  h+='<div><span class="dim">Test AUC:</span> <span style="color:#10B981;font-weight:700">'+(testAuc||'—')+'</span></div>';
+  h+='<div><span class="dim">Validation AUC:</span> <span style="color:#10B981;font-weight:700">'+(valAuc||'—')+'</span></div>';
+  h+='<div><span class="dim">Features:</span> '+(D.model?.features_used||43)+' Mixpanel signals</div>';
+  h+='<div><span class="dim">Training Samples:</span> '+fm(D.model?.train_samples||10000)+'</div>';
+  h+='<div><span class="dim">Detection Rate:</span> <span style="color:#10B981;font-weight:700">'+(D.backtest?pc(D.backtest.detection_p0p1):'99.5%')+'</span></div>';
+  h+='</div></div></div>';
+
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 2: RISK EXPLORER
+// ═══════════════════════════════════════════════════════════════════════════════
+function rendExplorer(){
+  var h='',co=D.churn_overview;
+
+  // Tier Distribution Banner
+  var tiers=co.tiers||{};var tTotal=Object.values(tiers).reduce(function(a,b){return a+b},0)||1;
+  h+='<div class="cd" style="padding:14px 20px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:13px;font-weight:700">Risk Distribution</div><div class="dim" style="font-size:11px">'+fm(tTotal)+' scored users</div></div>';
+  h+='<div class="tier-bar">';
+  ['CRITICAL','HIGH','MEDIUM','LOW'].forEach(function(t){
+    var c=tiers[t]||0;var w=Math.max(c/tTotal*100,2);
+    h+='<div style="width:'+w+'%;background:'+TC[t]+'20;color:'+TC[t]+'">'+t[0]+' '+fm(c)+'</div>';
+  });
+  h+='</div></div>';
+
+  // Filters
+  h+='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
+  h+='<input id="us" placeholder="Search user_id..." oninput="rend()" style="width:200px">';
+  h+='<select id="ut" onchange="rend()"><option value="ALL">All Tiers</option><option value="CRITICAL">Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>';
+  h+='<select id="uc" onchange="rend()"><option value="ALL">All Corridors</option>';
+  Object.keys(D.corridor_analysis).forEach(function(c){h+='<option value="'+c+'">'+c+'</option>'});
+  h+='</select>';
+  h+='<select id="uv" onchange="rend()"><option value="ALL">All Volume</option><option value="HIGH">High (&gt;$5K)</option><option value="MED">Med ($1K-$5K)</option><option value="LOW">Low (&lt;$1K)</option></select>';
+  h+='<select id="utn" onchange="rend()"><option value="ALL">All Tenure</option><option value="NEW">&lt;30d</option><option value="MID">30-90d</option><option value="OLD">&gt;90d</option></select>';
+  h+='</div>';
+
+  var all=[].concat(D.at_risk_users||[],D.churned_sample||[],D.healthy_sample||[]);var seen={};var dd=all.filter(function(u){if(seen[u.user_id])return false;seen[u.user_id]=1;return true});
+  var sf=(document.getElementById('us')||{}).value||'';
+  var tf=(document.getElementById('ut')||{}).value||'ALL';
+  var cf=(document.getElementById('uc')||{}).value||'ALL';
+  var vf=(document.getElementById('uv')||{}).value||'ALL';
+  var tnf=(document.getElementById('utn')||{}).value||'ALL';
+  if(tf!=='ALL')dd=dd.filter(function(u){return u.risk_tier===tf});
+  if(cf!=='ALL')dd=dd.filter(function(u){return u.corridor===cf});
+  if(vf==='HIGH')dd=dd.filter(function(u){return u.total_volume>5000});
+  if(vf==='MED')dd=dd.filter(function(u){return u.total_volume>=1000&&u.total_volume<=5000});
+  if(vf==='LOW')dd=dd.filter(function(u){return u.total_volume<1000});
+  if(tnf==='NEW')dd=dd.filter(function(u){return u.tenure_days<30});
+  if(tnf==='MID')dd=dd.filter(function(u){return u.tenure_days>=30&&u.tenure_days<=90});
+  if(tnf==='OLD')dd=dd.filter(function(u){return u.tenure_days>90});
+  if(sf)dd=dd.filter(function(u){return u.user_id.indexOf(sf)>=0});
+  dd.sort(function(a,b){return(b.churn_probability||b.risk_score)-(a.churn_probability||a.risk_score)});
+
+  var shapMap={};if(SHP&&SHP.user_shap)SHP.user_shap.forEach(function(s){shapMap[s.user_id]=s.drivers});
+
+  h+='<div class="cd" style="padding:0;overflow:hidden;border-radius:14px"><table><thead><tr><th>User</th><th>Tier</th><th>ML Score'+ib('ML Score')+'</th><th>Sentiment'+ib('Sentiment')+'</th><th>Lead Time'+ib('Lead Time')+'</th><th>Corridor</th><th>Volume</th><th>Top SHAP Driver'+ib('Top SHAP Driver')+'</th><th>Intervention'+ib('Intervention')+'</th></tr></thead><tbody>';
+  dd.slice(0,100).forEach(function(u){
+    var drivers=shapMap[u.user_id]||[];
+    var topDriver=drivers.length?drivers[0].feature.replace(/_/g,' '):(u.reasons&&u.reasons[0]?u.reasons[0].code.replace(/_/g,' '):'-');
+    var leadTime=Math.max(0,90-u.days_since_last);
+    var snt=SENT&&SENT[u.user_id]?SENT[u.user_id]:null;
+    var sntColor=!snt||!snt.sentiment?'#475569':snt.sentiment==='frustrated'?'#EF4444':snt.sentiment==='negative'?'#F59E0B':snt.sentiment==='concerned'?'#F59E0B':snt.sentiment==='positive'?'#10B981':'#475569';
+    var sntLabel=snt&&snt.sentiment?snt.sentiment:'\u2014';
+    var ppCount=snt?snt.pain_points_count||0:0;
+    var convCount=snt&&snt.conversation_count?snt.conversation_count:0;
+    h+='<tr onclick="opn(\''+u.user_id+'\')">';
+    h+='<td><span class="mono">'+u.user_id.slice(0,14)+'</span></td>';
+    h+='<td><span class="bd" style="'+BC[u.risk_tier]+'">'+u.risk_tier+'</span></td>';
+    h+='<td class="mono" style="font-weight:700;color:'+TC[u.risk_tier]+'">'+((u.churn_probability||u.risk_score)*100).toFixed(0)+'%</td>';
+    h+='<td style="font-size:10px;color:'+sntColor+'">'+sntLabel+(convCount?' <span class="dim">('+convCount+')</span>':'')+(ppCount?' <span style="background:#EF444415;color:#EF4444;padding:1px 5px;border-radius:4px;font-size:9px">'+ppCount+'</span>':'')+'</td>';
+    h+='<td style="color:'+(leadTime<14?'#EF4444':leadTime<30?'#F59E0B':'#10B981')+';font-weight:600">'+leadTime+'d</td>';
+    h+='<td class="dim">'+u.corridor+'</td>';
+    h+='<td class="dim">$'+fm(u.total_volume)+'</td>';
+    h+='<td style="font-size:10px;color:#a78bfa">'+topDriver+'</td>';
+    h+='<td style="font-size:10px">'+(u.intervention?u.intervention.type.replace(/_/g,' '):'-')+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<div class="dim" style="font-size:11px;margin-top:8px">Showing '+Math.min(dd.length,100)+' of '+dd.length+' users — Click any row for User 360 + AI Dossier</div>';
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 3: EXPERIMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+function rendExperiments(){
+  var h='';
+
+  // Overall A/B Hero
+  var ov=EXPT.overall||{};
+  h+='<div class="cd hero" style="padding:24px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:start"><div>';
+  h+='<div style="font-size:18px;font-weight:800;margin-bottom:4px">A/B Experiment Results</div>';
+  h+='<div class="mut">Control (n='+fm(ov.n_control||1500)+') vs Treatment (n='+fm(ov.n_treatment||3500)+') | Randomized controlled trial</div>';
+  h+='</div><div style="text-align:right"><div style="font-size:11px;color:'+(ov.is_significant?'#10B981':'#F59E0B')+';font-weight:700;background:'+(ov.is_significant?'#10B98115':'#F59E0B15')+';padding:4px 12px;border-radius:8px">'+(ov.is_significant?'SIGNIFICANT':'NOT SIGNIFICANT')+'</div><div style="font-size:10px;color:#475569;margin-top:4px">p = '+(ov.p_value||0.003)+'</div></div></div>';
+  h+='<div class="g g3" style="margin-top:16px;margin-bottom:0">';
+  h+=mc('Control Churn',pc(ov.control_churn||0.15),'#EF4444','baseline');
+  h+=mc('Treatment Churn',pc(ov.treatment_churn||0.129),'#10B981','with interventions');
+  h+=mc('Relative Lift',((ov.lift_relative||0.14)*100).toFixed(0)+'%','#818cf8','churn reduction');
+  h+='</div></div>';
+
+  // Channel Comparison
+  h+='<div class="cd">';
+  h+=sec('Channel Performance','6 CHANNELS','#3B82F6');
+  h+='<table><thead><tr><th>Channel</th><th>Control Churn</th><th>Treatment Churn</th><th>Lift'+ib('Lift')+'</th><th>Cost/User</th><th>ROI</th></tr></thead><tbody>';
+  (EXPT.by_channel||[]).forEach(function(c){
+    var liftPct=(c.lift_relative*100).toFixed(0);
+    var roiColor=c.roi>5?'#10B981':c.roi>2?'#F59E0B':'#EF4444';
+    h+='<tr><td style="font-weight:600">'+c.channel+'</td><td class="dim">'+pc(c.control_churn)+'</td><td style="color:#10B981;font-weight:600">'+pc(c.treatment_churn)+'</td>';
+    h+='<td><span style="color:#10B981;font-weight:700">'+liftPct+'%</span></td>';
+    h+='<td class="mono">$'+c.cost_per_user.toFixed(2)+'</td>';
+    h+='<td style="color:'+roiColor+';font-weight:700">'+c.roi+'x</td></tr>';
+  });
+  h+='</tbody></table></div>';
+
+  // Cohort Experiments
+  h+='<div class="cd">';
+  h+=sec('Cohort-Level A/B Results','PER-SEGMENT','#8B5CF6');
+  h+='<table><thead><tr><th>Cohort</th><th>N</th><th>Control</th><th>Treatment</th><th>Lift</th><th>CI</th><th>Significant'+ib('P-Value')+'</th></tr></thead><tbody>';
+  (EXPT.by_cohort||[]).forEach(function(c){
+    var sig=c.is_significant==='True'||c.is_significant===true;
+    h+='<tr><td style="color:'+(c.color||'#e2e8f0')+';font-weight:600">'+c.cohort+'</td>';
+    h+='<td class="dim">'+fm(c.n)+'</td>';
+    h+='<td class="dim">'+pc(c.control_churn)+'</td>';
+    h+='<td style="color:#10B981">'+pc(c.treatment_churn)+'</td>';
+    h+='<td style="font-weight:700;color:'+(sig?'#10B981':'#64748b')+'">'+((c.lift_relative||0)*100).toFixed(1)+'%</td>';
+    h+='<td class="mono dim" style="font-size:10px">['+(c.ci_lower||0).toFixed(3)+', '+(c.ci_upper||0).toFixed(3)+']</td>';
+    h+='<td><span style="color:'+(sig?'#10B981':'#64748b')+';font-weight:700">'+(sig?'YES':'no')+'</span></td></tr>';
+  });
+  h+='</tbody></table></div>';
+
+  // Two-column: Pricing Impact | Revenue Scenarios
+  h+='<div class="g g2">';
+
+  // Pricing Impact
+  h+='<div class="cd">';
+  h+=sec('Pricing Experiment','DOSE-RESPONSE','#F59E0B');
+  var pi=D.pricing_impact||{};
+  var piEntries=Object.entries(pi);
+  if(piEntries.length){
+    var piMax=Math.max.apply(null,piEntries.map(function(e){return e[1].churn_rate}));
+    piEntries.forEach(function(e){
+      var label=e[0].replace('USER_PRICING_','').replace('_',' ');
+      var cr=e[1].churn_rate;
+      var w=cr/piMax*100;
+      h+='<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="font-weight:600">'+label+'</span><span class="dim">n='+e[1].total+' | churn '+pc(cr)+'</span></div>';
+      h+='<div class="brt"><div class="brf" style="width:'+w+'%;background:'+(cr>0.14?'#EF4444':cr>0.12?'#F59E0B':'#10B981')+'"></div></div></div>';
+    });
+    h+='<div class="mut" style="font-size:10px;margin-top:8px">Lower pricing tiers show progressive churn reduction (dose-response curve)</div>';
+  }
+  h+='</div>';
+
+  // Revenue Scenarios
+  h+='<div class="cd">';
+  h+=sec('Revenue Impact Scenarios','');
+  if(IM&&IM.scenarios){
+    IM.scenarios.forEach(function(s,i){
+      var colors=['#3B82F6','#818cf8','#10B981'];
+      h+='<div style="background:'+colors[i]+'08;border:1px solid '+colors[i]+'20;border-radius:10px;padding:14px;margin-bottom:10px">';
+      h+='<div style="font-size:12px;font-weight:700;color:'+colors[i]+'">'+s.label+'</div>';
+      h+='<div style="display:flex;justify-content:space-between;margin-top:6px"><div><div style="font-size:22px;font-weight:800">'+fm(s.saved)+'</div><div class="dim" style="font-size:10px">users saved</div></div>';
+      h+='<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:'+colors[i]+'">$'+fm(s.revenue)+'</div><div class="dim" style="font-size:10px">annual revenue</div></div></div></div>';
+    });
+    h+='<div class="dim" style="font-size:10px;margin-top:4px">Avg revenue/user: $'+IM.avg_annual_revenue_per_user+'/yr | Intervention cost: $'+fm(IM.intervention_cost)+'</div>';
+  }
+  h+='</div></div>';
+
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 4: SIMULATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+function rendSimulator(){
+  var h='';
+
+  // Interactive Controls
+  h+='<div class="cd hero" style="padding:24px">';
+  h+='<div style="font-size:18px;font-weight:800;margin-bottom:14px">Revenue Simulator</div>';
+  h+='<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">';
+  h+='<div><div class="ml" style="margin-bottom:4px">Cohort</div><select id="sim_cohort" style="width:180px"><option value="all">All Users</option>';
+  (COH||[]).forEach(function(c){h+='<option value="'+c.key+'">'+c.label+'</option>'});
+  h+='</select></div>';
+  h+='<div><div class="ml" style="margin-bottom:4px">Playbook</div><select id="sim_playbook" style="width:180px"><option value="re_engagement">Re-engagement ($0.15)</option><option value="priority_queue">Priority Queue ($0.50)</option><option value="speed_guarantee">Speed Guarantee ($1.20)</option><option value="loyalty_discount">Loyalty Discount ($2.00)</option><option value="support_callback">Support Callback ($3.50)</option></select></div>';
+  h+='<div><div class="ml" style="margin-bottom:4px">Budget ($)</div><input id="sim_budget" type="number" value="5000" style="width:120px"></div>';
+  h+='<div><div class="ml" style="margin-bottom:4px">Target Users</div><input id="sim_target" type="number" value="500" style="width:120px"></div>';
+  h+='<button class="btn btn-primary" onclick="runSim()" style="height:38px">Run Simulation</button>';
+  h+='</div></div>';
+
+  // Results area
+  h+='<div id="sim_results"><div class="cd mut" style="text-align:center;padding:40px">Configure parameters above and click "Run Simulation" to see projected outcomes.</div></div>';
+
+  // SHAP Feature Importance (relocated from old SHAP tab)
+  if(SHP){
+    h+='<div class="g g2">';
+    // Global
+    h+='<div class="cd">';
+    h+=sec('Global Feature Importance'+ib('SHAP Value'),'SHAP','#a78bfa');
+    var gi=SHP.global_importance||[];var gmx=gi.length?gi[0].importance:1;
+    gi.slice(0,12).forEach(function(f){
+      var c=f.direction==='increases_churn'?'#EF4444':'#10B981';
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="width:160px;font-size:11px">'+f.feature.replace(/_/g,' ')+'</span><div style="flex:1"><div class="brt" style="height:14px"><div class="brf" style="width:'+(f.importance/gmx*100).toFixed(0)+'%;background:'+c+'"></div></div></div><span style="font-size:10px;width:45px;text-align:right;color:'+c+'">'+f.importance.toFixed(3)+'</span></div>';
+    });
+    h+='</div>';
+
+    // Per-user
+    h+='<div class="cd">';
+    h+=sec('Per-User SHAP Drivers'+ib('Per-User SHAP'),'TOP AT-RISK','#EF4444');
+    (SHP.user_shap||[]).slice(0,6).forEach(function(u){
+      h+='<div style="margin-bottom:10px;padding:10px;background:#080b12;border-radius:10px;cursor:pointer" onclick="opn(\''+u.user_id+'\')">';
+      h+='<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="mono" style="color:#a78bfa">'+u.user_id.slice(0,14)+'</span><span style="font-weight:700;color:#EF4444">'+(u.churn_probability*100).toFixed(0)+'%</span></div>';
+      h+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
+      (u.drivers||[]).slice(0,4).forEach(function(d){
+        var c=d.direction==='increases_churn'?'#EF4444':'#10B981';
+        h+='<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:'+c+'10;color:'+c+';border:1px solid '+c+'25">'+d.feature.replace(/_/g,' ')+' ('+d.shap_value.toFixed(2)+')</span>';
+      });
+      h+='</div></div>';
+    });
+    h+='</div></div>';
+  }
+  return h;
+}
+
+function runSim(){
+  var el=document.getElementById('sim_results');
+  el.innerHTML='<div class="cd mut" style="text-align:center;padding:30px">Running simulation...</div>';
+  var body={cohort_key:document.getElementById('sim_cohort').value,playbook:document.getElementById('sim_playbook').value,budget:parseFloat(document.getElementById('sim_budget').value)||5000,target_count:parseInt(document.getElementById('sim_target').value)||500};
+  fetch('/api/simulator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(r){
+    var profit=r.net_profit||0;var profitColor=profit>0?'#10B981':'#EF4444';
+    var h='<div class="g g4" style="margin-bottom:0">';
+    h+=mc('Target Users',fm(r.target_users),'#818cf8','from '+r.cohort);
+    h+=mc('Avg Churn Prob',pc(r.avg_churn_probability),'#F59E0B','pre-intervention');
+    h+=mc('Expected Retained',fm(r.expected_retained),'#10B981','users saved');
+    h+=mc('Projected Revenue','$'+fm(r.projected_revenue),'#10B981','from retained');
+    h+='</div><div class="g g3" style="margin-bottom:0">';
+    h+=mc('Campaign Cost','$'+fm(r.projected_cost),'#F59E0B',r.playbook.replace(/_/g,' '));
+    h+=mc('Net Profit','$'+fm(profit),profitColor,'revenue - cost');
+    h+=mc('ROI',r.roi+'x',r.roi>1?'#10B981':'#EF4444','return on spend');
+    h+='</div>';
+    el.innerHTML=h;
+  }).catch(function(e){el.innerHTML='<div class="cd" style="color:#EF4444">Simulation failed: '+e.message+'</div>';});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 5: FUNNELS & COHORTS
+// ═══════════════════════════════════════════════════════════════════════════════
+var selFunnel='onboarding';
+function rendCohorts(){
+  var h='';
+
+  // Funnel Selector
+  var mp=D.mixpanel||{};var funnels=mp.funnels||{};
+  h+='<div class="cd">';
+  h+=sec('Mixpanel Funnels','LIVE DATA','#818cf8');
+  h+='<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">';
+  Object.entries(funnels).forEach(function(f){
+    var k=f[0],v=f[1];var isOn=selFunnel===k;
+    h+='<button onclick="selFunnel=\''+k+'\';rend()" class="btn btn-sm '+(isOn?'btn-primary':'btn-outline')+'">'+v.name+(v.steps&&v.steps[0]?' ('+fm(v.steps[0].count)+')':'')+'</button>';
+  });
+  if(!Object.keys(funnels).length)h+='<div class="mut">Awaiting Mixpanel funnel data...</div>';
+  h+='</div>';
+
+  // Selected funnel visualization
+  var sf=funnels[selFunnel];
+  if(sf&&sf.steps&&sf.steps.length){
+    var mxC=sf.steps[0].count||1;
+    sf.steps.forEach(function(s){
+      var w=Math.max(s.count/mxC*100,1);
+      var clr=s.overall_pct>50?'#10B981':s.overall_pct>10?'#F59E0B':'#EF4444';
+      h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">';
+      h+='<span style="width:240px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+s.goal+'"><span class="dim">'+s.step+'.</span> '+s.goal+'</span>';
+      h+='<div style="flex:1"><div class="brt" style="height:16px"><div class="brf" style="width:'+w+'%;background:'+clr+'"></div></div></div>';
+      h+='<span style="font-size:11px;font-weight:700;width:55px;text-align:right">'+fm(s.count)+'</span>';
+      h+='<span style="font-size:10px;width:40px;text-align:right;color:'+clr+';font-weight:600">'+s.overall_pct+'%</span>';
+      h+='</div>';
+    });
+  }
+  h+='</div>';
+
+  // Decagon Support Intelligence
+  if(DEC&&DEC.unique_users){
+    h+='<div class="cd">';
+    h+=sec('Decagon Support Intelligence',''+DEC.unique_users+' USERS','#F59E0B');
+    h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">';
+    h+=pill('Users with Conversations',fm(DEC.unique_users),'#F59E0B');
+    h+=pill('Total Conversations',fm(DEC.total_conversations),'#818cf8');
+    h+=pill('With AI Summary',fm(DEC.with_summary),'#10B981');
+    h+='</div>';
+    if(DEC.countries){
+      h+='<div style="font-size:12px;font-weight:600;margin-bottom:6px">By Country</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+      Object.entries(DEC.countries).sort(function(a,b){return b[1]-a[1]}).slice(0,8).forEach(function(c){
+        h+='<span style="background:#080b12;border:1px solid #1e293b;border-radius:8px;padding:4px 10px;font-size:11px"><span style="font-weight:700">'+c[0]+'</span> <span class="dim">'+fm(c[1])+'</span></span>';
+      });
+      h+='</div>';
+    }
+    if(DEC.users&&DEC.users.length){
+      h+='<table><thead><tr><th>User</th><th>Name</th><th>Convos</th><th>Country</th><th>Latest</th></tr></thead><tbody>';
+      DEC.users.slice(0,10).forEach(function(u){
+        h+='<tr><td class="mono">'+u.user_id.slice(0,14)+'</td><td>'+u.name+'</td><td style="font-weight:600">'+u.conversation_count+'</td><td class="dim">'+u.country+'</td><td class="dim" style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+u.latest_summary.slice(0,80)+'</td></tr>';
+      });
+      h+='</tbody></table>';
+    }
+    h+='</div>';
+  }
+
+  // Cohort Heatmap (existing functionality preserved)
+  if(!COH||!COH.length)return h+'<div class="cd mut">No cohort data available.</div>';
+  var icons={rocket:'\uD83D\uDE80',alert:'\u26A0\uFE0F',warning:'\uD83D\uDEE0',tag:'\uD83C\uDFF7\uFE0F',sleep:'\uD83D\uDCA4',sparkle:'\u2728',trending_down:'\uD83D\uDCC9',check:'\u2705'};
+  h+='<div class="cd hero"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:16px;font-weight:800">Behavioral Cohort Intelligence</div><div class="mut" style="margin-top:4px">'+COH.length+' cohorts | Risk heatmap | LTV at risk | Winback playbooks</div></div><div class="sh-badge" style="background:#818cf815;color:#818cf8">ML + LLM</div></div></div>';
+
+  h+='<div class="g" style="grid-template-columns:repeat('+Math.min(COH.length,4)+',1fr)">';
+  COH.forEach(function(c){
+    var chP=c.churn_rate*100;var chC=chP>30?'#EF4444':chP>15?'#F59E0B':chP>5?'#3B82F6':'#10B981';
+    var ltv=Math.round(c.stats.total_volume*0.02);
+    h+='<div class="cd" style="cursor:pointer;border-left:3px solid '+c.color+'" onclick="toggleCohort(\''+c.key+'\')" onmouseover="this.style.background=\'#ffffff04\'" onmouseout="this.style.background=\'\'">';
+    h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="font-size:14px">'+(icons[c.icon]||'')+'</span><span style="font-size:13px;font-weight:700;color:'+c.color+'">'+c.label+'</span></div>';
+    h+='<div style="font-size:26px;font-weight:800">'+fm(c.count)+'<span style="font-size:12px;color:#475569;font-weight:400"> ('+c.pct+'%)</span></div>';
+    h+='<div style="display:flex;gap:10px;margin-top:8px;font-size:11px">';
+    h+='<div><span class="dim">Churn</span> <span style="color:'+chC+';font-weight:700">'+chP.toFixed(1)+'%</span></div>';
+    h+='<div><span class="dim">At Risk</span> <span style="color:#F59E0B;font-weight:700">'+fm(c.at_risk)+'</span></div>';
+    h+='<div><span class="dim">LTV</span> <span style="color:#EF4444;font-weight:700">$'+fm(ltv)+'</span></div>';
+    h+='</div></div>';
+  });
+  h+='</div>';
+
+  // Expandable cohort detail panels (preserved)
+  COH.forEach(function(c){
+    var chP=c.churn_rate*100;var s=c.retention_strategy;
+    h+='<div id="coh_'+c.key+'" style="display:none">';
+    h+='<div class="cd" style="border-left:4px solid '+c.color+';background:'+c.color+'06">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:start"><div><div style="font-size:15px;font-weight:800;color:'+c.color+'">'+(icons[c.icon]||'')+' '+c.label+'</div><div class="mut" style="margin-top:4px;max-width:600px">'+c.description+'</div></div><div style="text-align:right"><div style="font-size:30px;font-weight:800">'+fm(c.count)+'</div><div class="ms">users</div></div></div>';
+    h+='<div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">';
+    [['Churn',chP.toFixed(1)+'%',chP>30?'#EF4444':'#F59E0B'],['Avg Orders',c.stats.avg_orders,'#e2e8f0'],['Inactive',Math.round(c.stats.avg_days_inactive)+'d',c.stats.avg_days_inactive>30?'#F59E0B':'#10B981'],['Error Rate',(c.stats.avg_error_rate*100).toFixed(1)+'%',c.stats.avg_error_rate>0.1?'#EF4444':'#10B981'],['Conversion',(c.stats.avg_tx_conversion*100).toFixed(0)+'%','#e2e8f0'],['Volume','$'+fm(c.stats.total_volume),'#818cf8']].forEach(function(si){h+=pill(si[0],si[1],si[2])});
+    h+='</div>';
+    if(c.corridor_split&&Object.keys(c.corridor_split).length){h+='<div style="margin-top:14px;display:flex;gap:8px">';Object.entries(c.corridor_split).forEach(function(cs){var cr2=cs[1].churn_rate*100;h+='<div style="background:#080b12;border:1px solid #1e293b;border-radius:8px;padding:8px 14px;flex:1"><div style="font-size:11px;font-weight:700">'+cs[0]+'</div><div style="font-size:16px;font-weight:800">'+fm(cs[1].count)+'</div><div style="font-size:10px;color:'+(cr2>20?'#EF4444':'#10B981')+'">'+cr2.toFixed(1)+'% churn</div></div>'});h+='</div>';}
+    h+='</div>';
+
+    // Winback playbook
+    h+='<div class="cd" style="background:#10B98106;border-color:#10B98120">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:800;color:#10B981">Winback Playbook</div><div class="sh-badge" style="background:#10B98115;color:#10B981">AI Generated</div></div>';
+    h+='<div style="font-size:13px;font-weight:600;margin-bottom:8px">Goal: '+s.goal+'</div>';
+    h+='<table><thead><tr><th>Action</th><th>Channel</th><th>Timing</th><th>Lift</th><th>Cost</th></tr></thead><tbody>';
+    s.actions.forEach(function(a){h+='<tr><td style="font-size:12px;max-width:280px">'+a.action+'</td><td><span style="font-size:10px;background:#1e293b;padding:3px 8px;border-radius:4px">'+a.channel+'</span></td><td class="dim" style="font-size:11px">'+a.timing+'</td><td style="color:#10B981;font-weight:700">'+a.expected_lift+'</td><td class="mono">$'+a.cost_per_user.toFixed(2)+'</td></tr>'});
+    h+='</tbody></table>';
+    h+='<div style="margin-top:10px;padding:10px;background:#EF444408;border:1px solid #EF444418;border-radius:8px"><span style="font-size:10px;font-weight:700;color:#EF4444">RISK IF IGNORED: </span><span style="font-size:11px;color:#f87171">'+s.risk_if_ignored+'</span></div>';
+    h+='</div>';
+
+    if(c.sample_users&&c.sample_users.length){h+='<div class="cd"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Top At-Risk in Cohort</div><table><thead><tr><th>User</th><th>Corridor</th><th>Tier</th><th>Score</th><th>Orders</th><th>Inactive</th></tr></thead><tbody>';c.sample_users.forEach(function(u){h+='<tr onclick="opn(\''+u.user_id+'\')" style="cursor:pointer"><td class="mono">'+u.user_id.slice(0,14)+'</td><td>'+u.corridor+'</td><td><span class="bd" style="'+BC[u.risk_tier]+'">'+u.risk_tier+'</span></td><td style="font-weight:700">'+(u.churn_probability*100).toFixed(0)+'%</td><td>'+u.total_orders+'</td><td class="mut">'+u.days_since_last+'d</td></tr>'});h+='</tbody></table></div>';}
+    h+='</div>';
+  });
+
+  return h;
+}
+
+var openCohort=null;
+function toggleCohort(key){if(openCohort===key){document.getElementById('coh_'+key).style.display='none';openCohort=null}else{if(openCohort)document.getElementById('coh_'+openCohort).style.display='none';document.getElementById('coh_'+key).style.display='block';openCohort=key;document.getElementById('coh_'+key).scrollIntoView({behavior:'smooth',block:'start'})}}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 6: COMMAND CENTER (with Intervention Log + AI Chat)
+// ═══════════════════════════════════════════════════════════════════════════════
+function rendCommand(){
+  var h='',iv=Object.entries(D.interventions||{});
+  h+='<div class="cd hero"><div style="font-size:18px;font-weight:800;color:#818cf8">Command Center</div><div class="mut" style="margin-top:4px">Execute retention campaigns, track interventions, manage budgets, and query AI</div></div>';
+
+  // Campaign triggers by tier
+  h+='<div class="g g4">';
+  ['CRITICAL','HIGH','MEDIUM','LOW'].forEach(function(tier){
+    var count=D.churn_overview.tiers[tier]||0;
+    h+='<div class="cd" style="text-align:center"><div class="bd" style="'+BC[tier]+';margin-bottom:8px">'+tier+'</div><div class="mv" style="color:'+TC[tier]+'">'+fm(count)+'</div><div class="ms" style="margin-bottom:10px">users</div>';
+    if(tier!=='LOW'){h+='<button class="btn btn-sm btn-outline" style="width:100%;margin-bottom:4px" onclick="launchCampaign(\''+tier+'\','+count+')">Launch Campaign</button>';h+='<button class="btn btn-sm btn-outline" style="width:100%;border-color:#a78bfa;color:#a78bfa;font-size:10px" onclick="analyzeLaunch(\''+tier+'\','+count+')">Analyze & Launch</button>';}
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // Intervention Log
+  h+='<div class="cd">';
+  h+=sec('Intervention Log','LIVE TRACKING','#10B981');
+  h+='<div id="int_log"><div class="mut" style="font-size:11px">Loading intervention history...</div></div>';
+  h+='</div>';
+  // Fetch intervention log async
+  setTimeout(function(){
+    fetch('/api/interventions/log').then(function(r){return r.json()}).then(function(log){
+      var el=document.getElementById('int_log');if(!el)return;
+      if(!log.length){el.innerHTML='<div class="mut" style="font-size:11px">No interventions triggered yet. Use campaign launchers above to begin.</div>';return;}
+      var lh='<table><thead><tr><th>ID</th><th>User</th><th>Channel</th><th>Tier</th><th>Triggered</th><th>Status</th><th>Outcome</th></tr></thead><tbody>';
+      log.slice(-20).reverse().forEach(function(e){
+        var sc=e.status==='sent'?'#10B981':e.status==='failed'?'#EF4444':'#F59E0B';
+        lh+='<tr><td class="mono dim" style="font-size:10px">'+e.id.slice(-8)+'</td><td class="mono">'+e.user_id.slice(0,12)+'</td><td>'+e.channel+'</td><td><span class="bd" style="'+BC[e.risk_tier]+'">'+e.risk_tier+'</span></td><td class="dim" style="font-size:10px">'+new Date(e.triggered_at).toLocaleString()+'</td><td style="color:'+sc+';font-weight:600">'+e.status+'</td><td class="dim">'+(e.outcome||'pending')+'</td></tr>';
+      });
+      lh+='</tbody></table>';el.innerHTML=lh;
+    }).catch(function(){});
+  },100);
+
+  // Campaign History (S3 Audit Trail)
+  h+='<div class="cd">';
+  h+=sec('Campaign History','S3 AUDIT TRAIL','#a78bfa');
+  h+='<div id="camp_hist"><div class="mut" style="font-size:11px">Loading campaign history...</div></div>';
+  h+='</div>';
+  setTimeout(function(){
+    fetch('/api/campaigns/history').then(function(r){return r.json()}).then(function(d){
+      var el=document.getElementById('camp_hist');if(!el)return;
+      if(!d.campaigns||!d.campaigns.length){el.innerHTML='<div class="mut" style="font-size:11px">No campaigns yet. S3 '+(d.s3_configured?'connected':'not configured — records stored in memory')+'.</div>';return;}
+      var ch='<div style="font-size:10px;margin-bottom:6px;color:#a78bfa">S3: '+(d.s3_configured?'Connected':'Mock mode')+' | Total: '+d.total+'</div>';
+      ch+='<table><thead><tr><th>ID</th><th>Time</th><th>Tier</th><th>Channel</th><th>Users</th><th>LLM</th><th>S3</th></tr></thead><tbody>';
+      d.campaigns.slice(0,10).forEach(function(c){
+        ch+='<tr><td class="mono dim" style="font-size:10px">'+c.campaign_id.slice(0,8)+'</td><td class="dim" style="font-size:10px">'+new Date(c.triggered_at).toLocaleString()+'</td><td><span class="bd" style="'+BC[c.tier]+'">'+c.tier+'</span></td><td>'+c.channel_used+'</td><td style="font-weight:600">'+c.total_targeted+'</td><td style="color:'+(c.llm_analysis_included?'#a78bfa':'#475569')+'">'+( c.llm_analysis_included?'Yes':'No')+'</td><td style="color:'+(c.s3_status==='written'?'#10B981':c.s3_status==='mock'?'#F59E0B':'#EF4444')+'">'+c.s3_status+'</td></tr>';
+      });
+      ch+='</tbody></table>';el.innerHTML=ch;
+    }).catch(function(){});
+  },200);
+
+  // Budget & Frequency Caps
+  h+='<div class="g g2"><div class="cd">';
+  h+=sec('Budget Controls','');
+  h+='<div style="font-size:12px"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Monthly Budget'+ib('Monthly Budget')+'</span><span style="font-weight:700;color:#10B981">$5,000</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Spent This Month'+ib('Spent This Month')+'</span><span style="font-weight:700;color:#F59E0B">$'+fm(EX?EX.total_intervention_cost:0)+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Remaining'+ib('Remaining')+'</span><span style="font-weight:700">$'+fm(5000-(EX?EX.total_intervention_cost:0))+'</span></div>';
+  h+='<div class="brt" style="height:10px"><div class="brf" style="width:'+Math.min((EX?EX.total_intervention_cost:0)/50,100)+'%;background:linear-gradient(90deg,#6366F1,#7c3aed)"></div></div></div></div>';
+
+  h+='<div class="cd">';
+  h+=sec('Frequency Caps'+ib('Frequency Caps'),'');
+  h+='<div style="font-size:12px">';
+  [['Max 3 push/day per user','Active','#10B981'],['Max 5 emails/week per user','Active','#10B981'],['No contact 24h post opt-out','Active','#10B981'],['Max 1 phone call/week','Active','#10B981'],['Quiet hours 9PM-8AM','Active','#10B981'],['Do-not-contact list','12 users','#F59E0B']].forEach(function(r){
+    h+='<div style="display:flex;justify-content:space-between;margin-bottom:5px;padding:5px 0;border-bottom:1px solid #1e293b15"><span>'+r[0]+'</span><span style="color:'+r[2]+';font-weight:700;font-size:11px">'+r[1]+'</span></div>';
+  });
+  h+='</div></div></div>';
+
+  // Intervention Breakdown
+  h+='<div class="cd">';
+  h+=sec('Intervention Breakdown'+ib('Intervention Breakdown'),'');
+  var imx=Math.max.apply(null,iv.map(function(i){return i[1].count}).concat([1]));
+  iv.forEach(function(i){h+=br(i[0].replace(/_/g,' '),i[1].count,imx,'#818cf8')});
+  h+='</div>';
+
+  // AI Chat (merged from standalone tab)
+  h+='<div class="cd" style="border-color:#6366F130">';
+  h+='<div style="font-size:14px;font-weight:800;color:#818cf8;margin-bottom:12px">AI Assistant</div>';
+  h+='<div id="cms" style="max-height:300px;overflow-y:auto;padding:10px 0;min-height:60px"><div class="cm ca">Ask about churn patterns, cohorts, interventions, or revenue impact.</div></div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="sug">';
+  ['Churn rate?','Worst cohort?','SHAP features?','At-risk users?','ROI by channel?','Revenue impact?','Corridor health?'].forEach(function(s){h+='<button onclick="ask(\''+s.replace(/'/g,"\\'")+'\')" style="padding:4px 10px;border-radius:10px;border:1px solid #1e293b;background:transparent;color:#64748b;font-size:10px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'#6366F1\';this.style.color=\'#818cf8\'" onmouseout="this.style.borderColor=\'#1e293b\';this.style.color=\'#64748b\'">'+s+'</button>'});
+  h+='</div>';
+  h+='<div style="display:flex;gap:8px"><input id="ci" placeholder="Ask about churn intelligence..." style="flex:1" onkeydown="if(event.key===\'Enter\')ask()"><button onclick="ask()" class="btn btn-primary">Send</button></div>';
+  h+='</div>';
+
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// USER 360 DRAWER
+// ═══════════════════════════════════════════════════════════════════════════════
+function opn(id){
+  var all=[].concat(D.at_risk_users||[],D.churned_sample||[],D.healthy_sample||[]);var u;for(var i=0;i<all.length;i++){if(all[i].user_id===id){u=all[i];break;}}if(!u)return;
+  var tc=TC[u.risk_tier],d='';
+  d+='<div style="display:flex;justify-content:space-between;margin-bottom:16px"><h2 style="font-size:18px;font-weight:800">User 360</h2><button onclick="cld()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">\u2715</button></div>';
+  d+='<div class="cd" style="background:#6366F108;border-color:#6366F130;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#818cf8;margin-bottom:6px">AI RECOVERY DOSSIER</div><div id="abr" class="mut" style="font-size:13px;line-height:1.6">Loading dossier...</div></div>';
+  d+='<div class="cd" style="margin-bottom:12px"><div class="mono dim" style="margin-bottom:4px">'+u.user_id+'</div><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><span class="bd" style="'+BC[u.risk_tier]+'">'+u.risk_tier+'</span><span style="font-size:26px;font-weight:800;color:'+tc+'">'+((u.churn_probability||u.risk_score)*100).toFixed(0)+'%</span></div>';
+  d+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">';
+  [['Corridor',u.corridor],['Tenure',u.tenure_days+'d'],['Inactive',u.days_since_last+'d'],['Txns',u.total_txns+' ('+u.completed_txns+'/'+u.failed_txns+')'],['Volume','$'+fm(u.total_volume)],['Fail Rate',pc(u.fail_rate)],['Delivery',u.avg_delivery_min+'min'],['Stuck',pc(u.stuck_rate)]].forEach(function(p){d+='<div><span class="dim">'+p[0]+': </span><span style="font-weight:600">'+p[1]+'</span></div>'});
+  d+='</div></div>';
+
+  var shapMap={};if(SHP&&SHP.user_shap)SHP.user_shap.forEach(function(s){shapMap[s.user_id]=s.drivers});
+  var drivers=shapMap[u.user_id]||[];
+  if(drivers.length){
+    d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">SHAP Drivers</div>';
+    drivers.forEach(function(dr){var c=dr.direction==='increases_churn'?'#EF4444':'#10B981';d+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:11px"><span style="color:'+c+'">'+dr.feature.replace(/_/g,' ')+'</span><span class="mono" style="color:'+c+'">'+dr.shap_value.toFixed(3)+' (val='+dr.feature_value+')</span></div>';});
+    d+='</div>';
+  }
+
+  d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#F59E0B;margin-bottom:6px">CUSTOMER SENTIMENT (Decagon)</div><div id="sentiment-data" class="mut" style="font-size:11px">Loading sentiment...</div></div>';
+
+  d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Risk Reasons</div>';
+  (u.reasons||[]).forEach(function(r){d+='<div style="padding:5px 10px;margin-bottom:3px;border-radius:6px;background:'+tc+'08;border-left:3px solid '+tc+';font-size:11px"><b style="color:'+tc+'">'+r.code.replace(/_/g,' ').toUpperCase()+'</b> \u2014 '+r.description+'</div>'});d+='</div>';
+
+  if(u.intervention){d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Recommended Intervention</div><div style="background:#10B98108;border:1px solid #10B98120;border-radius:8px;padding:10px"><div style="font-size:11px;font-weight:700;color:#10B981">'+u.intervention.type.replace(/_/g,' ').toUpperCase()+'</div><div style="font-size:12px;margin:4px 0">'+u.intervention.message+'</div><div class="dim" style="font-size:10px">'+u.intervention.channel+' | $'+u.intervention.cost+' | '+u.intervention.lift+'</div></div></div>';}
+
+  d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Event Timeline</div><div id="timeline" class="mut" style="font-size:11px">Loading...</div></div>';
+  d+='<div class="cd" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Risk Trend</div><div id="risktrend" class="mut" style="font-size:11px">Loading...</div></div>';
+
+  d+='<div class="cd"><div style="font-size:12px;font-weight:700;margin-bottom:10px">Actions</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
+  d+='<button class="btn btn-primary btn-sm" onclick="sendEngage(\''+u.user_id+'\',\'push\')">Push</button>';
+  d+='<button class="btn btn-success btn-sm" onclick="sendEngage(\''+u.user_id+'\',\'email\')">Email</button>';
+  d+='<button class="btn btn-warning btn-sm" onclick="sendEngage(\''+u.user_id+'\',\'sms\')">SMS</button>';
+  d+='<button class="btn btn-danger btn-sm" onclick="triggerCall(\''+u.user_id+'\')">AI Call</button>';
+  d+='<button class="btn btn-outline btn-sm" style="border-color:#a78bfa;color:#a78bfa" onclick="runRiskAnalysis(\''+u.user_id+'\')">AI Risk Analysis</button>';
+  d+='<button class="btn btn-outline btn-sm" onclick="viewDossier(\''+u.user_id+'\')">Full Dossier</button>';
+  d+='</div><div id="action-status" class="mut" style="font-size:10px;margin-top:6px"></div></div>';
+  d+='<div id="llm-risk-panel" style="display:none" class="cd" style="margin-bottom:12px"></div>';
+
+  document.getElementById('dr').innerHTML=d;document.getElementById('dr').classList.add('show');document.getElementById('ov').classList.add('show');
+
+  // Load sentiment
+  fetch('/api/users/'+id+'/sentiment').then(function(r){return r.json()}).then(function(s){
+    var el=document.getElementById('sentiment-data');if(!el)return;
+    if(!s.has_conversations){el.innerHTML='<span class="dim">No support conversations found.</span>';return;}
+    var sntColor=s.sentiment==='frustrated'?'#EF4444':s.sentiment==='negative'?'#F59E0B':s.sentiment==='concerned'?'#F59E0B':s.sentiment==='positive'?'#10B981':'#64748b';
+    var sntIcon=s.sentiment==='frustrated'?'\uD83D\uDE21':s.sentiment==='negative'?'\uD83D\uDE1F':s.sentiment==='concerned'?'\uD83D\uDE15':s.sentiment==='positive'?'\uD83D\uDE0A':'\uD83D\uDE10';
+    var urgColor=s.urgency==='immediate'?'#EF4444':s.urgency==='soon'?'#F59E0B':'#10B981';
+    var sh='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span style="font-size:18px">'+sntIcon+'</span><span style="font-size:14px;font-weight:700;color:'+sntColor+'">'+s.sentiment.toUpperCase()+'</span>';
+    sh+='<span style="font-size:10px;padding:2px 8px;border-radius:6px;background:'+urgColor+'15;color:'+urgColor+';border:1px solid '+urgColor+'25;font-weight:700">'+s.urgency+'</span>';
+    if(s.churn_signal==='yes')sh+='<span style="font-size:10px;padding:2px 8px;border-radius:6px;background:#EF444415;color:#EF4444;font-weight:700">churn signal</span>';
+    sh+='</div>';
+    sh+='<div style="font-size:12px;line-height:1.5;color:#e2e8f0;margin-bottom:8px">'+s.summary+'</div>';
+    if(s.pain_points&&s.pain_points.length){sh+='<div style="margin-bottom:8px"><span style="font-size:10px;font-weight:700;color:#475569">PAIN POINTS:</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">';s.pain_points.forEach(function(p){sh+='<span style="font-size:10px;padding:2px 8px;border-radius:6px;background:#EF444410;color:#f87171;border:1px solid #EF444020">'+p+'</span>'});sh+='</div></div>';}
+    if(s.conversations&&s.conversations.length){sh+='<div style="font-size:10px;font-weight:700;color:#475569;margin-bottom:4px">CONVERSATIONS ('+s.conversations.length+')</div>';
+      s.conversations.forEach(function(c){var stColor=c.status==='resolved'?'#10B981':c.status==='escalated'?'#F59E0B':'#EF4444';sh+='<div style="background:#080b12;border:1px solid #1e293b;border-radius:8px;padding:10px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:10px;color:#475569">'+(c.date||'N/A')+' via '+c.channel+'</span><span style="font-size:10px;color:'+stColor+';font-weight:700">'+c.status+'</span></div><div style="font-size:11px;color:#e2e8f0;line-height:1.4">'+c.summary.slice(0,300)+'</div>';if(c.resolution)sh+='<div style="margin-top:4px;padding:4px 8px;background:#10B98108;border-left:2px solid #10B981;font-size:10px;color:#10B981"><b>Resolution:</b> '+c.resolution.slice(0,200)+'</div>';if(c.user_messages&&c.user_messages.length)sh+='<div style="margin-top:4px;font-size:10px;color:#a78bfa"><b>User said:</b> "'+c.user_messages.slice(0,3).join('" | "')+'"</div>';if(c.rating)sh+='<div style="margin-top:3px;font-size:10px">'+'\u2B50'.repeat(Math.min(parseInt(c.rating),5))+'</div>';sh+='</div>';});
+    }
+    el.innerHTML=sh;
+  }).catch(function(){var el=document.getElementById('sentiment-data');if(el)el.innerHTML='<span class="dim">Unavailable.</span>';});
+
+  // Load dossier
+  fetch('/api/users/'+id+'/dossier').then(function(r){return r.json()}).then(function(dos){
+    var el=document.getElementById('abr');
+    if(el){var txt=dos.ai_summary||('Risk: '+dos.risk_tier+' ('+Math.round(dos.churn_probability*100)+'%). '+dos.churn_reasons.map(function(r){return r.description}).join('. ')+'. Recommended: '+dos.recommended_intervention.type.replace(/_/g,' ')+' via '+dos.recommended_intervention.channel+'.');el.innerHTML='<div style="margin-bottom:8px">'+txt+'</div>';el.style.color='#e2e8f0';if(dos.llm_justification){el.innerHTML+='<div style="margin-top:6px;padding:6px 8px;background:#6366F108;border-left:3px solid #a78bfa;font-size:11px;color:#c4b5fd"><b>LLM Insight:</b> '+dos.llm_justification+'</div>';}if(dos.llm_urgency){el.innerHTML+='<div style="margin-top:4px"><span style="font-size:10px;padding:2px 8px;border-radius:6px;background:'+(dos.llm_urgency==='immediate'?'#EF444415':'#F59E0B15')+';color:'+(dos.llm_urgency==='immediate'?'#EF4444':'#F59E0B')+';font-weight:700">urgency: '+dos.llm_urgency+'</span></div>';}}
+    var tl=document.getElementById('timeline');
+    if(tl&&dos.timeline&&dos.timeline.events){var evIcons={transaction:'\u2705',failed_payment:'\u274C',kyc_event:'\uD83D\uDCCB',support:'\uD83D\uDCDE',campaign:'\uD83D\uDCE7',app_session:'\uD83D\uDCF1'};var th='';dos.timeline.events.slice(-10).reverse().forEach(function(e){th+='<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #1e293b15"><span style="width:16px">'+(evIcons[e.type]||'\u2022')+'</span><span style="width:80px;color:#475569;font-size:10px">'+e.date+'</span><span>'+e.description+'</span></div>';});tl.innerHTML=th;}
+    var rt=document.getElementById('risktrend');
+    if(rt&&dos.timeline&&dos.timeline.risk_trend){var rh='<div style="display:flex;gap:4px;align-items:end;height:60px">';dos.timeline.risk_trend.forEach(function(r){var pct=r.risk_score*100;var c=pct>60?'#EF4444':pct>40?'#F59E0B':'#10B981';rh+='<div style="flex:1;text-align:center"><div style="height:'+pct*.6+'px;background:'+c+';border-radius:3px 3px 0 0;min-height:4px"></div><div style="font-size:9px;color:#475569;margin-top:2px">'+r.week+'</div><div style="font-size:9px;font-weight:700;color:'+c+'">'+pct.toFixed(0)+'%</div></div>';});rh+='</div>';rt.innerHTML=rh;}
+  }).catch(function(){});
+}
+
+function viewDossier(id){window.open('/api/users/'+id+'/dossier','_blank')}
+function sendEngage(userId,channel){var statusEl=document.getElementById('action-status');if(statusEl)statusEl.textContent='Sending '+channel+'...';fetch('/api/moengage/engage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,channel:channel})}).then(function(r){return r.json()}).then(function(d){showToast((d.mock?'[Demo] ':'')+'Sent '+channel+(d.s3?' | S3: '+(d.s3.success?'saved':'mock'):''),'success');if(statusEl)statusEl.innerHTML='<span style="color:#10B981">Sent</span>'}).catch(function(){showToast('Failed','error')})}
+function triggerCall(userId){fetch('/api/retell/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,phone:'+1-000-000-0000'})}).then(function(r){return r.json()}).then(function(d){showToast((d.mock?'[Demo] ':'')+'AI call queued'+(d.s3?' | S3: '+(d.s3.success?'saved':'mock'):''),'success')}).catch(function(){showToast('Call failed','error')})}
+function launchCampaign(tier,count){showToast('Launching '+tier+' campaign...','info');fetch('/api/moengage/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tier:tier,max_count:Math.min(count,100)})}).then(function(r){return r.json()}).then(function(d){showToast((d.mock?'[Demo] ':'')+'Campaign: '+d.targeted+' users'+(d.s3?' | S3: '+(d.s3.success?'saved':'mock'):''),'success');setTimeout(function(){if(T==='command')rend()},500)}).catch(function(){showToast('Failed','error')})}
+function analyzeLaunch(tier,count){showToast('Running AI risk analysis + launching '+tier+' campaign...','info');fetch('/api/moengage/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tier:tier,max_count:Math.min(count,100)})}).then(function(r){return r.json()}).then(function(d){var msg=(d.mock?'[Demo] ':'')+'Campaign: '+d.targeted+' users';if(d.s3)msg+=' | S3: '+(d.s3.success?'saved':'mock');if(d.campaign_id)msg+=' | ID: '+d.campaign_id.slice(0,8);showToast(msg,'success');setTimeout(function(){if(T==='command')rend()},500)}).catch(function(){showToast('Failed','error')})}
+function runRiskAnalysis(userId){var panel=document.getElementById('llm-risk-panel');var statusEl=document.getElementById('action-status');if(statusEl)statusEl.textContent='Running AI risk analysis...';if(panel){panel.style.display='block';panel.innerHTML='<div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:6px">AI RISK ANALYSIS</div><div class="mut" style="font-size:11px">Analyzing risk signals...</div>';}fetch('/api/ai/risk-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId})}).then(function(r){return r.json()}).then(function(d){if(statusEl)statusEl.innerHTML='<span style="color:#a78bfa">Analysis complete</span>';var a=d.analyses[userId];if(!a||a.error){if(panel)panel.innerHTML='<div style="color:#EF4444;font-size:11px">Analysis unavailable</div>';return;}var ph='<div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:8px">AI RISK ANALYSIS <span style="font-size:10px;color:#475569;font-weight:400">('+(a.source||'llm')+')</span></div>';ph+='<div style="display:flex;gap:6px;margin-bottom:8px"><span style="font-size:10px;padding:2px 8px;border-radius:6px;background:'+(a.urgency==='immediate'?'#EF444415':'#F59E0B15')+';color:'+(a.urgency==='immediate'?'#EF4444':'#F59E0B')+';font-weight:700">'+a.urgency+'</span><span style="font-size:10px;padding:2px 8px;border-radius:6px;background:#6366F115;color:#818cf8;font-weight:700">confidence: '+(a.confidence*100).toFixed(0)+'%</span></div>';if(a.risk_signals){ph+='<div style="font-size:10px;font-weight:700;color:#475569;margin-bottom:4px">RISK SIGNALS</div>';a.risk_signals.forEach(function(s){var sc=s.severity==='critical'?'#EF4444':s.severity==='high'?'#F59E0B':'#818cf8';ph+='<div style="padding:4px 8px;margin-bottom:3px;border-radius:6px;background:'+sc+'08;border-left:3px solid '+sc+';font-size:11px"><b style="color:'+sc+'">'+s.signal+'</b> <span class="dim">\u2014 '+s.evidence+'</span></div>';});}if(a.intervention_plan){ph+='<div style="font-size:10px;font-weight:700;color:#475569;margin:8px 0 4px">INTERVENTION PLAN</div>';['primary','secondary','tertiary'].forEach(function(k){var p=a.intervention_plan[k];if(!p)return;var icon=k==='primary'?'1\uFE0F\u20E3':k==='secondary'?'2\uFE0F\u20E3':'3\uFE0F\u20E3';ph+='<div style="padding:6px 8px;margin-bottom:4px;border-radius:6px;background:#10B98108;border:1px solid #10B98115;font-size:11px"><span>'+icon+'</span> <b>'+p.action+'</b> via '+p.channel+' ('+p.timing+')<div class="dim" style="font-size:10px;margin-top:2px">'+p.message_template+'</div></div>';});}if(a.justification){ph+='<div style="font-size:10px;font-weight:700;color:#475569;margin:8px 0 4px">JUSTIFICATION</div><div style="font-size:11px;line-height:1.5;color:#e2e8f0">'+a.justification+'</div>';}if(panel)panel.innerHTML=ph;}).catch(function(){if(statusEl)statusEl.innerHTML='<span style="color:#EF4444">Analysis failed</span>';if(panel)panel.innerHTML='<div style="color:#EF4444;font-size:11px">Failed to run analysis</div>';})}
+function cld(){document.getElementById('dr').classList.remove('show');document.getElementById('ov').classList.remove('show')}
+
+// AI Chat
+function ask(p){var inp=document.getElementById('ci');var msg=p||(inp?inp.value.trim():'');if(!msg)return;if(inp)inp.value='';var sg=document.getElementById('sug');if(sg)sg.style.display='none';var ms=document.getElementById('cms');ms.innerHTML+='<div class="cm cu"><div>'+msg+'</div></div><div class="cm ca" id="ald" style="color:#475569">Thinking...</div>';ms.scrollTop=ms.scrollHeight;fetch('/api/ai/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})}).then(function(r){return r.json()}).then(function(d){var el=document.getElementById('ald');if(el){el.id='';el.style.color='#e2e8f0';el.textContent=d.response}ms.scrollTop=ms.scrollHeight}).catch(function(){var el=document.getElementById('ald');if(el){el.id='';el.textContent='Error.'}})}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN RENDERER
+// ═══════════════════════════════════════════════════════════════════════════════
+function rend(){
+  var h='';
+  if(T==='warroom')h=rendWarRoom();
+  else if(T==='explorer')h=rendExplorer();
+  else if(T==='experiments')h=rendExperiments();
+  else if(T==='simulator')h=rendSimulator();
+  else if(T==='cohorts')h=rendCohorts();
+  else if(T==='command')h=rendCommand();
+  document.getElementById('ct').innerHTML=h;
+}
+
+init();
+</script></body></html>

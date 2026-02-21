@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -5,9 +6,37 @@ dist/
 build/
 .eggs/
 *.egg
+.pytest_cache/
+
+# Virtual environments
 .venv/
 venv/
-key
+
+# Node
+node_modules/
+
+# CatBoost
+catboost_info/
+
+# Data
+data/
+
+# Environment & secrets
 .env
+key
+*.pem
+config.yaml
+
+# Logs
 *.log
-.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/
