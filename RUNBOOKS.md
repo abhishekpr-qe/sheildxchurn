@@ -5,27 +5,34 @@
 ## 1. Architecture Overview
 
 ```
-┌──────────┐     ┌──────────────────┐     ┌──────────────────────────────────┐
-│  Browser  │────▶│  Frontend (:3000) │────▶│        Backend (:3001)           │
-└──────────┘     │  server/frontend.js│     │        server/index.js           │
-                 └──────────────────┘     │                                  │
-                                           │  ┌────────────┐ ┌────────────┐  │
-                                           │  │  Redshift   │ │  MoEngage  │  │
-                                           │  │  (pg pool)  │ │  Push/Data │  │
-                                           │  └────────────┘ └────────────┘  │
-                                           │  ┌────────────┐ ┌────────────┐  │
-                                           │  │  Mixpanel   │ │  Anthropic │  │
-                                           │  │  Funnels    │ │  Claude AI │  │
-                                           │  └────────────┘ └────────────┘  │
-                                           │  ┌────────────┐ ┌────────────┐  │
-                                           │  │  Retell.ai  │ │  AWS S3    │  │
-                                           │  │  Voice Call  │ │  Audit Log │  │
-                                           │  └────────────┘ └────────────┘  │
-                                           │  ┌────────────┐                 │
-                                           │  │ PostgreSQL  │                 │
-                                           │  │ (cooldowns) │                 │
-                                           │  └────────────┘                 │
-                                           └──────────────────────────────────┘
+┌──────────┐     ┌──────────────────┐     ┌──────────────────────────────────────────┐
+│  Browser  │────▶│  Frontend (:3000) │────▶│            Backend (:3001)                │
+└──────────┘     │  server/frontend.js│     │            server/index.js                │
+                 └──────────────────┘     │                                          │
+                                           │  ┌─── Dual Database Pools ────────────┐  │
+                                           │  │ Redshift (prod data)               │  │
+                                           │  │ Local PostgreSQL (predictions,     │  │
+                                           │  │   LLM costs, cooldowns)            │  │
+                                           │  └────────────────────────────────────┘  │
+                                           │  ┌─── Tiered LLM ────────────────────┐  │
+                                           │  │ Rule Engine (rules.js/rules.yaml)  │  │
+                                           │  │   → Gemini Flash (gemini.js)       │  │
+                                           │  │   → Haiku (ai.js)                  │  │
+                                           │  │   → OpenRouter fallback            │  │
+                                           │  └────────────────────────────────────┘  │
+                                           │  ┌────────────┐ ┌────────────┐          │
+                                           │  │  MoEngage   │ │  Mixpanel   │          │
+                                           │  │  Push/Data  │ │  Funnels    │          │
+                                           │  └────────────┘ └────────────┘          │
+                                           │  ┌────────────┐ ┌────────────┐          │
+                                           │  │  Retell.ai  │ │  AWS S3    │          │
+                                           │  │  Voice Call  │ │  Audit Log │          │
+                                           │  └────────────┘ └────────────┘          │
+                                           │  ┌────────────┐ ┌────────────┐          │
+                                           │  │  llm-cost.js│ │  drift.js  │          │
+                                           │  │  Cost Track │ │  Drift Det │          │
+                                           │  └────────────┘ └────────────┘          │
+                                           └──────────────────────────────────────────┘
 
 ┌──────────────── Python ML Pipeline (offline) ────────────────┐
 │  Extract (Mixpanel) → Train (Ensemble) → Score → Dashboard   │
@@ -39,8 +46,8 @@
 - Backend: Node.js (Express 5), CommonJS
 - Frontend: Vanilla HTML/JS served via Express
 - ML: Python 3 (LightGBM, XGBoost, CatBoost, scikit-learn)
-- Databases: Amazon Redshift (analytics), PostgreSQL (cooldowns)
-- External: MoEngage, Mixpanel, Anthropic Claude, Retell.ai, AWS S3
+- Databases: Amazon Redshift (analytics), PostgreSQL (cooldowns + predictions + LLM costs)
+- External: MoEngage, Mixpanel, Anthropic Claude, Gemini Flash, OpenRouter, Retell.ai, AWS S3
 
 ---
 
@@ -103,6 +110,24 @@ All env vars are read in `server/config.js` via `dotenv`. Create a `.env` file i
 | `RETELL_API_KEY` | Retell.ai API key | — (mock mode) |
 | `RETELL_AGENT_ID` | Retell.ai agent ID | — |
 
+### Optional — Tiered Scoring
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `GEMINI_API_KEY` | Gemini Flash for T5 risk enrichment | — (falls back to rule engine) |
+| `ENABLE_GEMINI` | Kill switch for Gemini Flash | `true` |
+| `OPENROUTER_KEY` | OpenRouter LLM gateway fallback | — (direct API only) |
+
+### Optional — Local PostgreSQL (Predictions)
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `LOCAL_PG_HOST` | Local PostgreSQL host | — (predictions disabled) |
+| `LOCAL_PG_PORT` | Local PostgreSQL port | `5439` |
+| `LOCAL_PG_USER` | Local PostgreSQL username | — |
+| `LOCAL_PG_PASSWORD` | Local PostgreSQL password | — |
+| `LOCAL_PG_DB` | Local PostgreSQL database | `churndb` |
+
 ### Optional — Frontend
 
 | Variable | Purpose | Default |
@@ -136,8 +161,10 @@ PORT=4001 node server/index.js
 5. **Mount Swagger UI** — `GET /api-docs` (from `server/openapi.yaml`)
 6. **Listen on PORT** — logs user count, model type, integration status
 7. **Init cooldown table** — creates `sc_cooldowns` table if PG configured, loads active cooldowns into memory
-8. **Redshift refresh** — 5s delay, then `refreshAllData()`, repeats every 6 hours
-9. **Mixpanel refresh** — 8s delay, then `refreshMixpanelData()`, repeats every 6 hours
+8. **Init predictions tables** — creates `churn_predictions` (if missing) + `churn_llm_usage` on local PostgreSQL, adds `rule_version` column if absent
+9. **Drift check on refresh** — after each 6-hour Redshift refresh, checks model drift from `data/retrain_report.json`. Logs warning if AUC drops >5% for 2+ consecutive runs
+10. **Redshift refresh** — 5s delay, then `refreshAllData()`, repeats every 6 hours
+11. **Mixpanel refresh** — 8s delay, then `refreshMixpanelData()`, repeats every 6 hours
 
 ### Rate Limits
 
@@ -493,36 +520,56 @@ When `RETELL_API_KEY` or `RETELL_AGENT_ID` is not set:
 
 ---
 
-## 11. AI Risk Analysis Runbook
+## 11. Tiered Risk Analysis Runbook
 
-**Source:** `server/services/ai.js`, `server/routes/ai.js`
+**Source:** `server/services/rules.js`, `server/services/gemini.js`, `server/services/ai.js`, `server/routes/ai.js`
 
-### Model
+### Tiered Routing
 
-`claude-haiku-4-5-20251001` via Anthropic Messages API (`https://api.anthropic.com/v1/messages`)
+```
+User score → determineTier(score, riskTier)
+  ├─ score 0.38-0.42 → T6 (Haiku edge case)
+  ├─ CRITICAL or HIGH → T5 (Gemini Flash)
+  └─ everything else  → T2 (Rule engine)
+```
 
-### Endpoints
+### Tier Details
+
+| Tier | Model | Source Files | Cost |
+|------|-------|-------------|------|
+| T2 | 25-rule YAML engine | `server/services/rules.js`, `server/rules.yaml` | $0 |
+| T5 | Gemini 2.0 Flash | `server/services/gemini.js` → `server/services/ai.js` | ~$0.001 |
+| T6 | Claude Haiku 4.5 | `server/services/ai.js` (callHaikuDirect) | ~$0.005 |
+
+### OpenRouter Fallback
+
+Both T5 and T6 try their direct API first, then fall back to OpenRouter (`OPENROUTER_KEY`):
+- T5: Gemini direct → OpenRouter `google/gemini-2.0-flash-001`
+- T6: Anthropic direct → OpenRouter `anthropic/claude-3.5-haiku`
+
+### Kill Switch
+
+`ENABLE_GEMINI=false` disables ALL Gemini calls (T5). T6 Haiku is controlled by `ANTHROPIC_API_KEY` presence.
+
+### Cost Tracking (GR-010)
+
+Every LLM call records: model, tier, input_tokens, output_tokens, cost_usd, req_id, user_id
+- In-memory: 24h rolling cache for fast `/api/predictions/cost` reads
+- Persistent: `churn_llm_usage` table in local PostgreSQL
+
+### Endpoints (unchanged + new)
 
 | Method | Path | Purpose | Max Tokens |
 |--------|------|---------|------------|
-| POST | `/api/ai/risk-analysis` | Structured risk signals + intervention plan | 800 |
+| POST | `/api/ai/risk-analysis` | Tiered risk signals (T2/T5/T6 auto-routing) | 800 |
 | POST | `/api/ai/brief` | 3-4 sentence user brief | 500 |
 | POST | `/api/ai/chat` | Conversational churn intelligence | 800 |
 
-### Risk Analysis Cache
-
-- **TTL:** 5 minutes (`RISK_CACHE_TTL = 5 * 60 * 1000`)
-- **Key:** user_id
-- **Batch limit:** max 20 users per request
-
 ### Fallback Chain
 
-1. **LLM available** → call Anthropic, parse JSON response
-2. **JSON parse failure** → `rule_based_parse_fallback` (confidence: 0.6)
-3. **LLM error/timeout** → `rule_based_fallback` (confidence: 0.65)
-4. **No API key** → `rule_based` (confidence: 0.7)
-
-All fallbacks use `buildFallback()` which generates risk signals from user reasons, a 3-step intervention plan, and justification from ML scores.
+1. T5/T6: Direct API → OpenRouter → T2 rule engine
+2. T2 always available: 25 rules from `server/rules.yaml`, confidence 0.60-0.85
+3. No API keys needed for T2 — pure deterministic, $0
 
 ---
 
@@ -742,3 +789,61 @@ pip install lightgbm xgboost catboost scikit-learn pandas numpy
 |---------|-------|-----|
 | `{ mock: true }` responses | `RETELL_API_KEY` or `RETELL_AGENT_ID` not set | Set both env vars |
 | Call initiation fails | Invalid phone number or API error | Check Retell.ai dashboard for call logs; verify phone format |
+
+### Tiered Scoring
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| All responses show `tier: "T2"`, `source: "rule_engine"` | Gemini key quota exceeded or Anthropic key invalid | Check `GEMINI_API_KEY` quota at Google AI Studio; verify `ANTHROPIC_API_KEY` at console.anthropic.com; or set `OPENROUTER_KEY` as fallback |
+| CRITICAL user gets T2 instead of T5 | `ENABLE_GEMINI=false` or no `GEMINI_API_KEY`/`OPENROUTER_KEY` | Set `ENABLE_GEMINI=true` and provide either `GEMINI_API_KEY` or `OPENROUTER_KEY` |
+| Edge user (0.38-0.42) gets T2 instead of T6 | No `ANTHROPIC_API_KEY` and no `OPENROUTER_KEY` | Provide either key; T6 requires at least one |
+| `Gemini direct error 429` in logs | Gemini API quota exceeded | Upgrade billing at Google AI Studio or rely on OpenRouter fallback |
+| `Haiku direct error 401` in logs | Invalid Anthropic API key | Get fresh key from console.anthropic.com or use OpenRouter |
+| Cost endpoint shows 0 | No LLM calls made (all T2) | Expected if no LLM keys configured; T2 is $0 |
+| Predictions write returns 0 written | `LOCAL_PG_HOST` not set | Set local PostgreSQL env vars |
+
+---
+
+## 15. Self-Learning Feedback Loop
+
+**Source:** `server/services/drift.js`, `server/routes/predictions.js`
+
+### Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/predictions/write` | Batch write scored predictions (idempotent: DELETE+INSERT per model_version) |
+| POST | `/api/predictions/evaluate` | Evaluate 60-day outcomes against actual transaction activity |
+| GET | `/api/predictions/drift` | Model drift status with governance thresholds |
+| GET | `/api/predictions/cost` | LLM cost summary (in-memory 24h + persistent 30d) |
+
+### Tables (Local PostgreSQL)
+
+**churn_predictions** — 16 columns, composite key (user_id, predicted_at, model_version)
+**churn_llm_usage** — 9 columns, indexed on created_at
+
+### Prediction Write (Idempotent)
+
+1. DELETE existing rows for same (user_id, model_version) batch
+2. INSERT fresh rows with rule_version hash
+3. All within a transaction (BEGIN/COMMIT/ROLLBACK)
+4. 500 rows per batch
+
+### Outcome Evaluation (60-day window)
+
+1. Fetch completed user_ids from production Redshift
+2. Compare against predictions 60-90 days old in local PG
+3. Set actual_outcome = 'churned' (0 txns) or 'retained'
+
+### Drift Detection
+
+**Source:** `data/retrain_report.json` (produced by `scripts/retrain.py`)
+
+| Config | Env Var | Default |
+|--------|---------|---------|
+| Baseline AUC | `DRIFT_BASELINE_AUC` | 0.90 |
+| Drop threshold | `DRIFT_DROP_PCT` | 5% |
+| Consecutive runs before alert | `DRIFT_CONSECUTIVE_RUNS` | 2 |
+| Feature z-score threshold | `DRIFT_Z_THRESHOLD` | 2.0 |
+
+**Governance:** Alerts only fire after N consecutive degraded runs (prevents false alarms from single noisy runs). Per GR-009 and GR-011: never auto-deploy threshold changes or rule mutations.

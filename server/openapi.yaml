@@ -4,7 +4,7 @@ info:
   description: >
     Churn prediction, risk analysis, and retention campaign management
     for Aspora's cross-border remittance platform.
-  version: 1.0.0
+  version: 2.0.0
   contact:
     name: Aspora Engineering
 
@@ -27,6 +27,8 @@ tags:
     description: Interventions, campaigns, simulator, integrations
   - name: AI
     description: Sentiment analysis, AI chat, risk analysis, Mixpanel
+  - name: Predictions
+    description: Self-learning feedback loop - predictions, drift detection, cost tracking
 
 paths:
   # --- System ---
@@ -1077,6 +1079,165 @@ paths:
                   last_refresh:
                     type: string
                     nullable: true
+
+  # --- Predictions ---
+  /api/predictions/write:
+    post:
+      tags: [Predictions]
+      summary: Batch write scored predictions (idempotent)
+      operationId: writePredictions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model_version, predictions]
+              properties:
+                model_version:
+                  type: string
+                predictions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                      risk_tier:
+                        type: string
+                        enum: [CRITICAL, HIGH, MEDIUM, LOW]
+                      churn_probability:
+                        type: number
+                      risk_score:
+                        type: number
+                      corridor:
+                        type: string
+                      days_since_last:
+                        type: integer
+                      total_txns:
+                        type: integer
+                      intervention_type:
+                        type: string
+      responses:
+        '200':
+          description: Write result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  written:
+                    type: integer
+                  errors:
+                    type: integer
+                  model_version:
+                    type: string
+                  rule_version:
+                    type: string
+                  timestamp:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/predictions/evaluate:
+    post:
+      tags: [Predictions]
+      summary: Evaluate 60-day prediction outcomes
+      operationId: evaluatePredictions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                window_days:
+                  type: integer
+                  default: 60
+      responses:
+        '200':
+          description: Evaluation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evaluated:
+                    type: integer
+                  window_days:
+                    type: integer
+                  timestamp:
+                    type: string
+
+  /api/predictions/drift:
+    get:
+      tags: [Predictions]
+      summary: Model drift status with governance
+      operationId: getPredictionDrift
+      responses:
+        '200':
+          description: Drift status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drifted:
+                    type: boolean
+                  alert:
+                    type: boolean
+                  current_auc:
+                    type: number
+                  baseline_auc:
+                    type: number
+                  drop_pct:
+                    type: number
+                  consecutive_degradations:
+                    type: integer
+                  threshold:
+                    type: integer
+                  feature_drift:
+                    type: array
+                    items:
+                      type: object
+                  model_version:
+                    type: string
+
+  /api/predictions/cost:
+    get:
+      tags: [Predictions]
+      summary: LLM cost summary per tier
+      operationId: getPredictionCost
+      responses:
+        '200':
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  last_24h:
+                    type: object
+                    properties:
+                      by_tier:
+                        type: object
+                      total_calls:
+                        type: integer
+                      total_cost:
+                        type: number
+                  last_30d:
+                    type: object
+                    properties:
+                      rows:
+                        type: array
+                        items:
+                          type: object
+                      days:
+                        type: integer
+                      timestamp:
+                        type: string
+                  timestamp:
+                    type: string
 
 components:
   parameters:

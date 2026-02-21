@@ -5,7 +5,7 @@
 [![Tests](https://img.shields.io/badge/tests-136%20passing-brightgreen)](#testing)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](#quick-start)
 [![Node](https://img.shields.io/badge/node-18+-green)](#quick-start)
-[![API](https://img.shields.io/badge/API-44%20endpoints-orange)](#api-endpoints)
+[![API](https://img.shields.io/badge/API-49%20endpoints-orange)](#api-endpoints)
 [![Model](https://img.shields.io/badge/model-AUC%200.941-purple)](#ml-pipeline)
 
 ---
@@ -13,41 +13,31 @@
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Browser (localhost:3000)                         │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │              Aspora Churn Intelligence Dashboard                  │  │
-│  │  Warroom │ Explorer │ Dossier │ Playbooks │ Live │ Campaigns │…  │  │
-│  └───────────────────────────────────────────────┬───────────────────┘  │
-└──────────────────────────────────────────────────┼──────────────────────┘
-                                                   │ HTTP/JSON
-┌──────────────────────────────────────────────────┼──────────────────────┐
-│                   Node.js Express API (44 endpoints)                    │
-│                                                                         │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ │
-│  │  Routes   │ │  Routes   │ │  Routes   │ │  Routes   │ │   Routes     │ │
-│  │  /data    │ │  /dossier │ │  /live    │ │/campaigns │ │   /ai        │ │
-│  │  /users   │ │  /score   │ │  /corridor│ │/moengage  │ │   /sentiment │ │
-│  │  /model   │ │  /exec    │ │  /trends  │ │/retell    │ │   /chat      │ │
-│  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └──────┬──────┘ │
-│        │              │              │              │              │        │
-│  ┌─────┴──────────────┴──────────────┴──────────────┴──────────────┴─────┐ │
-│  │                         Service Layer                                 │ │
-│  │  cache.js │ redshift.js │ sentiment.js │ campaign.js │ ai.js          │ │
-│  └──────┬──────────┬──────────────┬──────────────┬──────────────┬────────┘ │
-└─────────┼──────────┼──────────────┼──────────────┼──────────────┼──────────┘
-          │          │              │              │              │
-          ▼          ▼              ▼              ▼              ▼
-    ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐
-    │ Redshift │ │ Mixpanel │ │  AWS S3  │ │ MoEngage │ │  Anthropic   │
-    │ (txns,   │ │ (events, │ │ (audit   │ │ (engage, │ │  Claude 3.5  │
-    │  users)  │ │ profiles)│ │  trail)  │ │  bulk)   │ │  (AI brief)  │
-    └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────────┘
-                                                         ┌──────────────┐
-                                                         │  Retell.ai   │
-                                                         │  (AI voice)  │
-                                                         └──────────────┘
+Browser → Frontend (:3000) → Backend (:3001)
+                                  ↓
+                    Routes (data, live, cohorts, dossier, campaigns, ai, predictions)
+                                  ↓
+                    Service Layer (cache, redshift, sentiment, campaign, ai, rules, gemini, llm-cost, drift)
+                                  ↓
+              ┌─────────┬──────────┬─────────┬──────────┬─────────────┬─────────────┐
+         Redshift(prod) LocalPG   Mixpanel   S3       MoEngage    LLM Gateway
+         (txns,data)  (predictions,          (audit)  (engage)    (OpenRouter→
+                       llm_usage)                                  Gemini/Haiku)
+              └─────────┴──────────┴─────────┴──────────┴─────────────┴─────────────┘
+```
 
+#### Tiered Scoring Flow
+
+```
+User Score → determineTier() → T2 Rule Engine ($0, all users)
+                              → T5 Gemini Flash (~$0.001, CRITICAL/HIGH)
+                              → T6 Haiku (~$0.005, edge 0.38-0.42)
+                              → OpenRouter fallback for T5/T6
+```
+
+#### Python ML Pipeline (offline)
+
+```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                     Python ML Pipeline (offline)                        │
 │                                                                         │
@@ -77,8 +67,10 @@
 | [DEC-007](DECISIONS.md) | Ensemble ML (3 base + meta-learner) | Always retrain all models together |
 | [DEC-009](DECISIONS.md) | Dual backend (Python ML + Node API) | Never duplicate logic between them |
 | [DEC-010](DECISIONS.md) | 4-tier risk discretization | Map scores to tiers for operations |
+| [DEC-013](DECISIONS.md) | Tiered LLM (rule engine + Gemini Flash + Haiku) | T2 free for all; T5/T6 only when score warrants cost |
+| [DEC-014](DECISIONS.md) | Self-learning feedback loop (60-day window) | Evaluate predictions after 60 days; never auto-deploy retraining (GR-009) |
 
-Full list: [DECISIONS.md](DECISIONS.md) (10 decisions) | [GUARDRAILS.md](GUARDRAILS.md) (8 anti-patterns)
+Full list: [DECISIONS.md](DECISIONS.md) (14 decisions) | [GUARDRAILS.md](GUARDRAILS.md) (11 anti-patterns)
 
 ---
 
@@ -148,7 +140,7 @@ make check
 
 ## API Endpoints
 
-**44 endpoints** across 7 categories. Full OpenAPI 3.0.3 spec at [`/api-docs`](http://localhost:3000/api-docs).
+**49 endpoints** across 8 categories. Full OpenAPI 3.0.3 spec at [`/api-docs`](http://localhost:3000/api-docs).
 
 ### Data & Model (10)
 | Method | Path | Description |
@@ -193,7 +185,7 @@ make check
 | GET | `/api/sentiment/summary` | Bulk sentiment summary |
 | POST | `/api/ai/brief` | AI-generated retention brief (Claude) |
 | POST | `/api/ai/chat` | Chat with platform context |
-| POST | `/api/ai/risk-analysis` | Batch LLM risk analysis (up to 20 users) |
+| POST | `/api/ai/risk-analysis` | Batch LLM risk analysis with tiered processing (T2/T5/T6, up to 20 users) |
 | GET | `/api/decagon` | Browse Decagon conversations |
 | GET | `/api/users/:id/dossier` | Full recovery dossier (AI + sentiment + SHAP) |
 | POST | `/api/score/user` | Score single user |
@@ -205,6 +197,14 @@ make check
 | POST | `/api/score/user` | Score user → churn_probability, risk_tier, reasons |
 | GET | `/api/users/:id/dossier` | Full dossier: AI summary, LLM risk signals, nudge plan |
 | GET | `/api/executive` | Executive impact: total users, churn rate, revenue at risk |
+
+### Predictions & Feedback (4)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/predictions/write` | Batch write scored predictions (idempotent) |
+| POST | `/api/predictions/evaluate` | Evaluate 60-day outcomes |
+| GET | `/api/predictions/drift` | Model drift status + governance |
+| GET | `/api/predictions/cost` | LLM cost summary (per-tier breakdown) |
 
 ### Utility (5)
 | Method | Path | Description |
@@ -248,6 +248,18 @@ make check
 | MEDIUM | 0.40–0.59 | re_engagement email sequence | $3 |
 | LOW | < 0.40 | No intervention (monitor) | $0 |
 
+### Tiered Scoring Architecture
+
+| Tier | Model | Trigger | Cost | Monthly @5M users |
+|------|-------|---------|------|--------------------|
+| T2 | Rule engine (25 rules from `server/rules.yaml`) | All users | $0 | $0 |
+| T5 | Gemini 2.0 Flash (via OpenRouter fallback) | CRITICAL or HIGH (score >= 0.60) | ~$0.001/user | ~$15 |
+| T6 | Claude Haiku (via OpenRouter fallback) | Edge cases (score 0.38-0.42) | ~$0.005/user | ~$5 |
+
+**Kill switch:** Set `ENABLE_GEMINI=false` to disable T5. Missing API keys gracefully degrade to T2.
+
+**Self-learning loop:** Predictions stored in local PostgreSQL, evaluated after 60 days against actual transaction activity. Drift detection triggers retraining recommendations (never auto-deployed per GR-009).
+
 ### 43 Signal Features (8 categories)
 
 | Category | Features | Examples |
@@ -276,40 +288,204 @@ Full specification: [SIGNALS.md](SIGNALS.md)
 
 ## Data Pipeline
 
+### Pipeline 1: Offline ML Training (Python)
+
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│  Mixpanel    │     │  Redshift         │     │  Seed CSV           │
-│  Export API  │     │  (transactions)   │     │  (transactions_     │
-│  + Engage    │     │                   │     │   500k.csv)         │
-└──────┬───────┘     └────────┬──────────┘     └──────────┬──────────┘
+│  Mixpanel    │     │  Redshift (prod) │     │  Seed CSV           │
+│  Export API  │     │  analytics_      │     │  transactions_      │
+│  + Engage    │     │  orders_master   │     │  500k.csv           │
+└──────┬───────┘     └────────┬─────────┘     └──────────┬──────────┘
        │                      │                           │
        ▼                      ▼                           ▼
-┌──────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│ extract_     │     │  train_model.py  │     │ process_            │
-│ signals.py   │     │  (ensemble       │     │ transactions.py     │
-│ (43 features)│────→│   training)      │     │ (risk scoring)      │
-└──────────────┘     └──────────────────┘     └──────────┬──────────┘
-                                                         │
-                                                         ▼
-                                              ┌─────────────────────┐
-                                              │ data/               │
-                                              │ ├─ real_transactions │
-                                              │ │  .json (users,    │
-                                              │ │  cohorts, tiers)  │
-                                              │ └─ churn_dashboard_ │
-                                              │    data.json (model,│
-                                              │    SHAP, executive) │
+┌──────────────┐     ┌────────────────┐        ┌─────────────────────┐
+│ extract_     │     │ train_model.py │        │ process_            │
+│ signals.py   │────▶│ (LightGBM +   │        │ transactions.py     │
+│ (43 features)│     │  XGBoost +     │        │ (risk scoring +     │
+│              │     │  CatBoost +    │        │  tier assignment)   │
+│              │     │  LogReg meta)  │        │                     │
+└──────────────┘     └───────┬────────┘        └──────────┬──────────┘
+                             │                            │
+                             ▼                            ▼
+                    ┌────────────────┐        ┌─────────────────────┐
+                    │ retrain.py     │        │ data/               │
+                    │ (drift report, │        │ ├─ real_transactions │
+                    │  AUC metrics,  │        │ │  .json (59K users,│
+                    │  z-scores)     │        │ │  cohorts, tiers)  │
+                    └────────────────┘        │ ├─ churn_dashboard_ │
+                                              │ │  data.json (model,│
+                                              │ │  SHAP, executive) │
+                                              │ └─ retrain_report   │
+                                              │    .json (drift)    │
                                               └──────────┬──────────┘
                                                          │
                                                          ▼
                                               ┌─────────────────────┐
-                                              │ server/services/    │
                                               │ cache.js            │
-                                              │ (loads at startup,  │
-                                              │  builds userIndex,  │
-                                              │  merges with live   │
-                                              │  Redshift data)     │
+                                              │ (startup: loads     │
+                                              │  JSON → userIndex → │
+                                              │  merges live data)  │
                                               └─────────────────────┘
+```
+
+### Pipeline 2: Online Tiered Scoring (Node.js, per-request)
+
+```
+                              ┌──────────────────────────────────┐
+                              │         API Request              │
+                              │  POST /api/ai/risk-analysis      │
+                              │  { userIds: [...] }              │
+                              └───────────────┬──────────────────┘
+                                              │
+                                              ▼
+                              ┌──────────────────────────────────┐
+                              │  runRiskAnalysis(userId)          │
+                              │  ① Check 5-min cache             │
+                              │  ② Lookup user in userIndex      │
+                              │  ③ evaluateRules(user) → signals │
+                              │  ④ determineTier(score, tier)     │
+                              └───────────────┬──────────────────┘
+                                              │
+                    ┌─────────────────────────┼─────────────────────────┐
+                    │                         │                         │
+                    ▼                         ▼                         ▼
+        ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+        │     T2: Rules     │   │   T5: Gemini Flash │   │   T6: Haiku       │
+        │  (all other users)│   │  (CRITICAL / HIGH) │   │  (edge 0.38-0.42) │
+        │                   │   │                    │   │                    │
+        │  25 YAML rules    │   │  Direct Gemini API │   │  Direct Anthropic  │
+        │  from rules.yaml  │   │     ↓ (429?)       │   │     ↓ (401?)       │
+        │                   │   │  OpenRouter         │   │  OpenRouter        │
+        │  Cost: $0         │   │  (gemini-2.0-flash) │   │  (claude-3.5-haiku)│
+        │                   │   │     ↓ (fail?)       │   │     ↓ (fail?)       │
+        │                   │   │  Fallback → T2      │   │  Fallback → T2     │
+        └────────┬──────────┘   └─────────┬──────────┘   └─────────┬──────────┘
+                 │                        │                         │
+                 └────────────────────────┼─────────────────────────┘
+                                          │
+                                          ▼
+                              ┌──────────────────────────────────┐
+                              │  Response: { risk_signals,       │
+                              │    intervention_plan, justifi-   │
+                              │    cation, urgency, confidence,  │
+                              │    source, tier, cost }          │
+                              └───────────────┬──────────────────┘
+                                              │
+                          ┌───────────────────┼───────────────────┐
+                          ▼                                       ▼
+               ┌────────────────────┐                  ┌────────────────────┐
+               │  In-memory cache   │                  │  llm-cost.js       │
+               │  riskAnalysisCache │                  │  → recordCost()    │
+               │  (5-min TTL)       │                  │  → local PG:       │
+               └────────────────────┘                  │    churn_llm_usage │
+                                                       └────────────────────┘
+```
+
+### Pipeline 3: Live Data Refresh (6-hour cycle)
+
+```
+              ┌────────────────────────────────────────────────────────┐
+              │                 6-hour refresh interval                 │
+              │                 (REFRESH_INTERVAL)                      │
+              └───────────────────────┬────────────────────────────────┘
+                                      │
+                    ┌─────────────────┼─────────────────┐
+                    ▼                                     ▼
+         ┌────────────────────┐                ┌────────────────────┐
+         │  Redshift (prod)   │                │  Mixpanel          │
+         │                    │                │                    │
+         │  7 queries:        │                │  5 funnels:        │
+         │  • early_warnings  │                │  • onboarding      │
+         │  • corridor_health │                │  • activation      │
+         │  • monthly_trends  │                │  • uae_onboarding  │
+         │  • partner_perf    │                │  • uk_onboarding   │
+         │  • new_users       │                │  • us_onboarding   │
+         │  • at_risk_users   │                │                    │
+         │  • volume_summary  │                │  + Engage profiles │
+         └─────────┬──────────┘                └─────────┬──────────┘
+                   │                                     │
+                   └──────────────┬──────────────────────┘
+                                  ▼
+                       ┌────────────────────┐
+                       │  redshiftCache {}   │
+                       │  mixpanelCache {}   │
+                       │  (merged into       │
+                       │   /api/data resp)   │
+                       └─────────┬──────────┘
+                                 │
+                                 ▼
+                       ┌────────────────────┐
+                       │  drift.js          │
+                       │  checkDrift()      │
+                       │  (reads retrain_   │
+                       │   report.json,     │
+                       │   logs warnings if │
+                       │   AUC drops >5%    │
+                       │   for 2+ runs)     │
+                       └────────────────────┘
+```
+
+### Pipeline 4: Self-Learning Feedback Loop
+
+```
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │                        Prediction Lifecycle                             │
+   │                                                                         │
+   │  ① WRITE                    ② EVALUATE (60 days)    ③ DRIFT CHECK      │
+   │                                                                         │
+   │  POST /predictions/write    POST /predictions/      GET /predictions/   │
+   │         │                    evaluate                drift              │
+   │         ▼                         │                       │             │
+   │  ┌──────────────┐                ▼                       ▼             │
+   │  │ Local PG:    │    ┌──────────────────────┐   ┌─────────────────┐   │
+   │  │ churn_       │    │ Cross-DB evaluation:  │   │ retrain_report  │   │
+   │  │ predictions  │    │                       │   │ .json           │   │
+   │  │              │    │ 1. Fetch completed    │   │                 │   │
+   │  │ • user_id    │    │    users from prod    │   │ • AUC baseline  │   │
+   │  │ • score      │    │    Redshift (60d)     │   │ • consecutive   │   │
+   │  │ • risk_tier  │    │ 2. Match against      │   │   runs tracking │   │
+   │  │ • model_ver  │    │    predictions in     │   │ • z-score per   │   │
+   │  │ • rule_ver   │    │    local PG           │   │   feature       │   │
+   │  │ • top_reasons│    │ 3. UPDATE actual_     │   │ • alert if      │   │
+   │  │ • predicted  │    │    outcome =          │   │   AUC < 0.90    │   │
+   │  │   _at        │    │    'retained' or      │   │   for 2+ runs   │   │
+   │  │              │    │    'churned'           │   │                 │   │
+   │  └──────────────┘    └──────────────────────┘   └─────────────────┘   │
+   │                                                                         │
+   │  ④ COST TRACKING                                                       │
+   │                                                                         │
+   │  GET /predictions/cost                                                  │
+   │         │                                                               │
+   │         ▼                                                               │
+   │  ┌──────────────────────────────────────────────────────────┐          │
+   │  │ Dual-write cost tracking:                                 │          │
+   │  │                                                           │          │
+   │  │ In-memory (hot):  rolling 24h → GET /predictions/cost     │          │
+   │  │ Local PG (cold):  churn_llm_usage → 30d aggregation       │          │
+   │  │                                                           │          │
+   │  │ Breakdown by: tier (T2/T5/T6), model, calls, tokens, $   │          │
+   │  └──────────────────────────────────────────────────────────┘          │
+   └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Dual Database Architecture
+
+```
+┌─────────────────────────────────────┐   ┌─────────────────────────────────┐
+│       Redshift (Production)         │   │       Local PostgreSQL          │
+│  redshift-cluster.*.redshift.aws    │   │       localhost:5439            │
+│                                     │   │                                 │
+│  READ-ONLY from Node.js:           │   │  READ + WRITE from Node.js:    │
+│  • analytics_orders_master_data     │   │  • churn_predictions           │
+│  • early warnings queries           │   │    (59K users per model ver)   │
+│  • corridor health                  │   │  • churn_llm_usage             │
+│  • monthly trends                   │   │    (per-call LLM cost log)     │
+│  • partner performance              │   │  • cooldowns                   │
+│  • at-risk user signals             │   │    (intervention cooldown)     │
+│                                     │   │                                 │
+│  Pool: redshiftPool (SSL)           │   │  Pool: localPgPool (no SSL)    │
+│  Config: REDSHIFT_*                 │   │  Config: LOCAL_PG_*            │
+└─────────────────────────────────────┘   └─────────────────────────────────┘
 ```
 
 ---
@@ -320,7 +496,10 @@ Full specification: [SIGNALS.md](SIGNALS.md)
 |---------|---------|---------------|
 | **Redshift** | Transaction data, corridor metrics, user features | `REDSHIFT_HOST`, `REDSHIFT_USER`, `REDSHIFT_PASSWORD`, `REDSHIFT_DB` |
 | **Mixpanel** | Behavioral events (Export API) + user profiles (Engage API) | `MIXPANEL_API_SECRET`, `MIXPANEL_TOKEN`, `MIXPANEL_PROJECT_ID` |
-| **Anthropic** | AI-powered briefs, chat, risk analysis (Claude 3.5 Haiku) | `ANTHROPIC_API_KEY` |
+| **Anthropic** | T6 edge-case risk analysis (Claude Haiku, score 0.38-0.42) | `ANTHROPIC_API_KEY` |
+| **Gemini Flash** | T5 risk enrichment for CRITICAL/HIGH users | `GEMINI_API_KEY`, `ENABLE_GEMINI` |
+| **OpenRouter** | LLM gateway fallback (Gemini + Haiku via OpenRouter) | `OPENROUTER_KEY` |
+| **Local PostgreSQL** | Predictions + LLM cost tracking (dual pool) | `LOCAL_PG_HOST`, `LOCAL_PG_PORT`, `LOCAL_PG_USER`, `LOCAL_PG_PASSWORD`, `LOCAL_PG_DB` |
 | **MoEngage** | User engagement delivery (push, SMS, email, WhatsApp) | `MOENGAGE_APP_ID`, `MOENGAGE_API_KEY`, `MOENGAGE_DATA_API_KEY` |
 | **Retell.ai** | AI voice calls for retention outreach | `RETELL_API_KEY`, `RETELL_AGENT_ID` |
 | **AWS S3** | Campaign audit trail storage | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET` |
@@ -393,14 +572,16 @@ sheildxchurn/
 │   ├── index.js                  # Server entry, middleware, Swagger UI
 │   ├── config.js                 # Env + constants loader
 │   ├── types.js                  # JSDoc shared type definitions (14 types)
-│   ├── openapi.yaml              # OpenAPI 3.0.3 spec (44 endpoints)
+│   ├── openapi.yaml              # OpenAPI 3.0.3 spec (49 endpoints)
 │   ├── constants.json            # Generated from Python domain constants
+│   ├── rules.yaml                # 25 config-driven signal rules for T2 scoring
 │   ├── routes/                   # API route handlers
 │   │   ├── data.js               # /api/data, /users, /model, /impact, /cohorts
 │   │   ├── dossier.js            # /api/users/:id/dossier, /score, /executive
 │   │   ├── live.js               # /api/early-warnings, /corridor-health, /trends
 │   │   ├── campaigns.js          # /api/interventions, /moengage, /retell, /simulator
 │   │   ├── ai.js                 # /api/ai/brief, /chat, /risk-analysis, /sentiment
+│   │   ├── predictions.js        # /api/predictions/write, /evaluate, /drift, /cost
 │   │   └── mixpanel.js           # /api/mixpanel/funnel, /overview
 │   ├── services/                 # Business logic
 │   │   ├── cache.js              # In-memory data cache + userIndex
@@ -408,6 +589,10 @@ sheildxchurn/
 │   │   ├── sentiment.js          # Decagon CSV + rule-based + LLM sentiment
 │   │   ├── campaign.js           # S3 audit trail, MoEngage/Retell integration
 │   │   ├── ai.js                 # Claude API (brief, chat, risk analysis)
+│   │   ├── rules.js              # T2 rule engine (evaluates rules.yaml signals)
+│   │   ├── gemini.js             # T5 Gemini Flash risk enrichment via OpenRouter
+│   │   ├── llm-cost.js           # LLM cost tracking per tier (local PG)
+│   │   ├── drift.js              # Model drift detection + governance
 │   │   └── mixpanel.js           # Mixpanel funnel queries
 │   ├── lib/                      # Utilities
 │   │   ├── logger.js             # Structured JSON logging with request correlation
@@ -431,8 +616,8 @@ sheildxchurn/
 │   └── churn_dashboard_data.json # Model metadata, SHAP, executive impact
 │
 ├── CLAUDE.md                     # Agent instructions (Claude Code)
-├── DECISIONS.md                  # 10 architectural decisions
-├── GUARDRAILS.md                 # 8 anti-patterns
+├── DECISIONS.md                  # 14 architectural decisions
+├── GUARDRAILS.md                 # 11 anti-patterns
 ├── DOMAIN_CONTEXT.md             # Churn prediction & remittance terminology
 ├── SIGNALS.md                    # 43-feature specification
 ├── config.yaml                   # Domain config (funnels, thresholds)
@@ -449,6 +634,18 @@ sheildxchurn/
 ```bash
 # AI
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Tiered Scoring
+GEMINI_API_KEY=...           # Gemini Flash for T5 risk enrichment
+ENABLE_GEMINI=true           # Kill switch: set to 'false' to disable Gemini
+OPENROUTER_KEY=sk-or-...     # OpenRouter fallback for T5/T6
+
+# Local PostgreSQL (predictions + LLM costs)
+LOCAL_PG_HOST=localhost
+LOCAL_PG_PORT=5439
+LOCAL_PG_USER=redshift_admin
+LOCAL_PG_PASSWORD=...
+LOCAL_PG_DB=churndb
 
 # Data
 REDSHIFT_HOST=cluster.region.redshift.amazonaws.com
@@ -500,8 +697,8 @@ This project follows the [Aspora Cortex](CLAUDE.md) engineering framework:
 | File | Purpose |
 |------|---------|
 | [CLAUDE.md](CLAUDE.md) | Core engineering principles (loaded by Claude Code) |
-| [DECISIONS.md](DECISIONS.md) | 10 architectural decisions — read before any task |
-| [GUARDRAILS.md](GUARDRAILS.md) | 8 anti-patterns — don't repeat these mistakes |
+| [DECISIONS.md](DECISIONS.md) | 14 architectural decisions — read before any task |
+| [GUARDRAILS.md](GUARDRAILS.md) | 11 anti-patterns — don't repeat these mistakes |
 | [DOMAIN_CONTEXT.md](DOMAIN_CONTEXT.md) | Churn prediction & remittance terminology |
 | [SIGNALS.md](SIGNALS.md) | 43-feature specification |
 
