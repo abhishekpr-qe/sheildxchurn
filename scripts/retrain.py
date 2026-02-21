@@ -33,12 +33,16 @@ from sklearn.isotonic import IsotonicRegression
 
 warnings.filterwarnings('ignore')
 
-# Import from train_model
+# Constants from single source of truth
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from src.churn.domain.constants import SIGNAL_FEATURES, LABEL_COL, INTERVENTIONS
+
+# Training functions from train_model
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from train_model import (
-    SIGNAL_FEATURES, LABEL_COL, load_data, temporal_split,
+    load_data, temporal_split,
     train_lightgbm, train_xgboost, train_catboost, train_meta_learner,
-    predict_ensemble, generate_dashboard_json, INTERVENTIONS
+    predict_ensemble, generate_dashboard_json,
 )
 
 

@@ -12,10 +12,12 @@ from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE_DIR)
+from src.churn.domain.constants import CORRIDOR_MAP, INTERVENTIONS
+from src.churn.domain.risk import classify_risk_tier, compute_risk_score
+
 TXN_PATH = os.path.join(BASE_DIR, 'data', 'transactions_500k.csv')
 OUTPUT_PATH = os.path.join(BASE_DIR, 'data', 'real_transactions.json')
-
-CORRIDOR_MAP = {'AED': 'UAE → India', 'GBP': 'UK → India', 'USD': 'USA → India', 'EUR': 'Europe → India'}
 COMPLETED_STATUSES = {'COMPLETED'}
 FAILED_STATUSES = {'FAILED'}
 PENDING_STATUSES = {'PENDING', 'NEW', 'CREATED', 'PROCESSING_DEAL_IN'}
@@ -30,14 +32,14 @@ def parse_date(s):
     except ValueError:
         try:
             return datetime.strptime(s.strip(), '%B %d, %Y, %I:%M %p')
-        except:
+        except (ValueError, TypeError):
             return None
 
 
 def parse_amount(s):
     try:
         return float(s.replace(',', ''))
-    except:
+    except (ValueError, TypeError):
         return 0
 
 
@@ -125,14 +127,14 @@ def main():
         if slow_deliveries >= 2:
             signals.append({'code': 'repeated_slow_delivery', 'description': f'{slow_deliveries} slow deliveries'})
 
-        # Simple risk score based on signals
-        risk_score = min(1.0, 0.1 * len(signals) + 0.1 * fail_rate + 0.05 * min(days_since_last / 10, 1) + 0.1 * stuck_rate)
-        if days_since_last > 14:
-            risk_score = min(1.0, risk_score + 0.3)
-        if fail_rate > 0.3:
-            risk_score = min(1.0, risk_score + 0.2)
-
-        risk_tier = 'CRITICAL' if risk_score >= 0.6 else 'HIGH' if risk_score >= 0.4 else 'MEDIUM' if risk_score >= 0.2 else 'LOW'
+        # Risk scoring from domain layer
+        risk_score = compute_risk_score(
+            signal_count=len(signals),
+            fail_rate=fail_rate,
+            days_since_last=days_since_last,
+            stuck_rate=stuck_rate,
+        )
+        risk_tier = classify_risk_tier(risk_score)
 
         # Intervention type
         if fail_rate > 0.15:
@@ -146,13 +148,14 @@ def main():
         else:
             intervention_type = 're_engagement'
 
-        INTERVENTIONS = {
-            'support_callback': {'channel': 'Phone + SMS', 'cost': 3.50, 'lift': '18-22%', 'message': 'Priority support callback for transaction failures'},
-            'speed_guarantee': {'channel': 'WhatsApp + Email', 'cost': 1.20, 'lift': '12-16%', 'message': 'Guaranteed fast delivery on next transfers'},
-            'priority_queue': {'channel': 'SMS + In-app', 'cost': 0.50, 'lift': '10-14%', 'message': 'Priority queue for stuck transfers'},
-            're_engagement': {'channel': 'Email + Push', 'cost': 0.15, 'lift': '6-9%', 'message': 'Personalized re-engagement campaign'},
+        INTERVENTION_MESSAGES = {
+            'support_callback': 'Priority support callback for transaction failures',
+            'speed_guarantee':  'Guaranteed fast delivery on next transfers',
+            'priority_queue':   'Priority queue for stuck transfers',
+            're_engagement':    'Personalized re-engagement campaign',
         }
-        interv = INTERVENTIONS[intervention_type]
+        interv = {**INTERVENTIONS.get(intervention_type, INTERVENTIONS['re_engagement']),
+                   'message': INTERVENTION_MESSAGES.get(intervention_type, 'Re-engagement campaign')}
 
         user_metrics.append({
             'user_id': uid,

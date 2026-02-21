@@ -31,32 +31,13 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 # ── Configuration ───────────────────────────────────────────────────────────────
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from src.churn.domain.constants import CHURN_WINDOW_DAYS, EXPORT_EVENTS, ONBOARDING_STEPS
+
 MIXPANEL_SECRET     = os.environ.get('MIXPANEL_API_SECRET', '')
 MIXPANEL_PROJECT_ID = os.environ.get('MIXPANEL_PROJECT_ID', '2826019')
 ENGAGE_URL          = 'https://mixpanel.com/api/2.0/engage'
 EXPORT_URL          = 'https://data.mixpanel.com/api/2.0/export'
-
-# Observation window for churn labeling (60 days forward from scoring date)
-CHURN_WINDOW_DAYS = 60
-
-# Events to export
-EXPORT_EVENTS = [
-    'Screen loaded', 'ORDER_CREATED', 'ORDER_COMPLETED', 'send now click',
-    'bifrost api failed', 'bifrost api timeout exception',
-    'home_screen_loaded', 'transfer_screen_loaded',
-    'review_transfer_screen_loaded', 'help_and_support_screen_loaded',
-    'chat_with_us_clicked', '$ae_session',
-]
-
-# Onboarding step ordering for ordinal encoding
-ONBOARDING_STEPS = {
-    'signup_screen':    0,
-    'phone_verify':     1,
-    'personal_details': 2,
-    'kyc_upload':       3,
-    'kyc_review':       4,
-    'kyc_verified':     5,
-}
 
 
 def auth_header():
@@ -125,7 +106,7 @@ def pull_engage_features():
                 try:
                     last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00').replace('+00:00', ''))
                     days_since = (now - last_seen).days
-                except Exception:
+                except (ValueError, TypeError):
                     days_since = 999
             else:
                 days_since = 999

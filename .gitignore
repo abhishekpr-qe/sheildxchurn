@@ -34,9 +34,14 @@ config.yaml
 .DS_Store
 Thumbs.db
 
+# Archives
+*.zip
+*.tar.gz
+
 # IDE
 .vscode/
 .idea/
+*.swp
 
-# Claude
-.claude/
+# Claude Code (local permissions are machine-specific)
+.claude/settings.local.json
