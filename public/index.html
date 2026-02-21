@@ -57,6 +57,7 @@ input:focus,select:focus{border-color:#6366F1}
 <div class="toast" id="toast"></div>
 <script>
 var D,IM,INT,COH,EX,SHP,SENT,EXPT,DEC,T='warroom';
+var FLT={us:'',ut:'ALL',uc:'ALL',uv:'ALL',utn:''};
 var TC={CRITICAL:'#EF4444',HIGH:'#F59E0B',MEDIUM:'#3B82F6',LOW:'#10B981'};
 var BC={CRITICAL:'background:#EF444415;color:#EF4444;border:1px solid #EF444430',HIGH:'background:#F59E0B15;color:#F59E0B;border:1px solid #F59E0B30',MEDIUM:'background:#3B82F615;color:#3B82F6;border:1px solid #3B82F630',LOW:'background:#10B98115;color:#10B981;border:1px solid #10B98130'};
 function fm(n){if(n==null)return'-';return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n)}
@@ -280,21 +281,21 @@ function rendExplorer(){
 
   // Filters
   h+='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
-  h+='<input id="us" placeholder="Search user_id..." oninput="rend()" style="width:200px">';
-  h+='<select id="ut" onchange="rend()"><option value="ALL">All Tiers</option><option value="CRITICAL">Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>';
-  h+='<select id="uc" onchange="rend()"><option value="ALL">All Corridors</option>';
-  Object.keys(D.corridor_analysis).forEach(function(c){h+='<option value="'+c+'">'+c+'</option>'});
+  h+='<input id="us" placeholder="Search user_id..." value="'+FLT.us+'" oninput="FLT.us=this.value;rend()" style="width:200px">';
+  h+='<select id="ut" onchange="FLT.ut=this.value;rend()"><option value="ALL">All Tiers</option><option value="CRITICAL"'+(FLT.ut==='CRITICAL'?' selected':'')+'>Critical</option><option value="HIGH"'+(FLT.ut==='HIGH'?' selected':'')+'>High</option><option value="MEDIUM"'+(FLT.ut==='MEDIUM'?' selected':'')+'>Medium</option><option value="LOW"'+(FLT.ut==='LOW'?' selected':'')+'>Low</option></select>';
+  h+='<select id="uc" onchange="FLT.uc=this.value;rend()"><option value="ALL">All Corridors</option>';
+  Object.keys(D.corridor_analysis).forEach(function(c){h+='<option value="'+c+'"'+(FLT.uc===c?' selected':'')+'>'+c+'</option>'});
   h+='</select>';
-  h+='<select id="uv" onchange="rend()"><option value="ALL">All Volume</option><option value="HIGH">High (&gt;$5K)</option><option value="MED">Med ($1K-$5K)</option><option value="LOW">Low (&lt;$1K)</option></select>';
-  h+='<select id="utn" onchange="rend()"><option value="ALL">All Tenure</option><option value="NEW">&lt;30d</option><option value="MID">30-90d</option><option value="OLD">&gt;90d</option></select>';
+  h+='<select id="uv" onchange="FLT.uv=this.value;rend()"><option value="ALL">All Volume</option><option value="HIGH"'+(FLT.uv==='HIGH'?' selected':'')+'>High (&gt;$5K)</option><option value="MED"'+(FLT.uv==='MED'?' selected':'')+'>Med ($1K-$5K)</option><option value="LOW"'+(FLT.uv==='LOW'?' selected':'')+'>Low (&lt;$1K)</option></select>';
+  h+='<select id="utn" onchange="FLT.utn=this.value;rend()"><option value="ALL">All Tenure</option><option value="NEW"'+(FLT.utn==='NEW'?' selected':'')+'>&#60;30d</option><option value="MID"'+(FLT.utn==='MID'?' selected':'')+'>30-90d</option><option value="OLD"'+(FLT.utn==='OLD'?' selected':'')+'>&#62;90d</option></select>';
   h+='</div>';
 
   var all=[].concat(D.at_risk_users||[],D.churned_sample||[],D.healthy_sample||[]);var seen={};var dd=all.filter(function(u){if(seen[u.user_id])return false;seen[u.user_id]=1;return true});
-  var sf=(document.getElementById('us')||{}).value||'';
-  var tf=(document.getElementById('ut')||{}).value||'ALL';
-  var cf=(document.getElementById('uc')||{}).value||'ALL';
-  var vf=(document.getElementById('uv')||{}).value||'ALL';
-  var tnf=(document.getElementById('utn')||{}).value||'ALL';
+  var sf=FLT.us;
+  var tf=FLT.ut;
+  var cf=FLT.uc;
+  var vf=FLT.uv;
+  var tnf=FLT.utn;
   if(tf!=='ALL')dd=dd.filter(function(u){return u.risk_tier===tf});
   if(cf!=='ALL')dd=dd.filter(function(u){return u.corridor===cf});
   if(vf==='HIGH')dd=dd.filter(function(u){return u.total_volume>5000});
@@ -796,6 +797,7 @@ function rend(){
   else if(T==='cohorts')h=rendCohorts();
   else if(T==='command')h=rendCommand();
   document.getElementById('ct').innerHTML=h;
+  if(T==='explorer'&&FLT.us){var e=document.getElementById('us');if(e){e.focus();e.setSelectionRange(FLT.us.length,FLT.us.length)}}
 }
 
 init();
