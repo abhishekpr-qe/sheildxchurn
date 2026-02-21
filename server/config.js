@@ -27,10 +27,21 @@ const CFG = {
   AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
   S3_BUCKET:             process.env.S3_BUCKET,
   AWS_REGION:            process.env.AWS_REGION,
+  GEMINI_API_KEY:        process.env.GEMINI_API_KEY,
+  ENABLE_GEMINI:         process.env.ENABLE_GEMINI !== 'false',
+  OPENROUTER_KEY:        process.env.OPENROUTER_KEY,
 };
 
 const REFRESH_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 const RISK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Drift governance: alert only when AUC drops >5% for 2+ consecutive runs
+const DRIFT_CFG = {
+  baselineAuc:       parseFloat(process.env.DRIFT_BASELINE_AUC || '0.90'),
+  dropThresholdPct:  parseFloat(process.env.DRIFT_DROP_PCT || '5'),
+  consecutiveRuns:   parseInt(process.env.DRIFT_CONSECUTIVE_RUNS || '2'),
+  featureZThreshold: parseFloat(process.env.DRIFT_Z_THRESHOLD || '2.0'),
+};
 
 // Revenue simulation constants
 const MARGIN_PER_TXN = 8.50;
@@ -95,6 +106,7 @@ module.exports = {
   DOMAIN,
   REFRESH_INTERVAL,
   RISK_CACHE_TTL,
+  DRIFT_CFG,
   MARGIN_PER_TXN,
   LTV_MULTIPLIER,
   DEFAULT_LIMITS,

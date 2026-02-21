@@ -63,3 +63,15 @@
 **Over:** Raw probability scores, three tiers, dynamic thresholds
 **Why:** Discrete tiers enable targeted interventions with different cost/lift profiles per tier. Operations teams act on categories, not decimals.
 **Constraint:** ALWAYS map scores to tiers for operational use. NEVER expose raw probabilities to non-technical stakeholders.
+
+## DEC-013: Tiered LLM architecture — rule engine + Gemini Flash + Haiku (2026-02)
+**Chose:** T2 rule engine (all users, $0) → T5 Gemini Flash (top 10K high-risk, ~$15/mo) → T6 Haiku (edge cases 0.38-0.42, ~$5/mo)
+**Over:** Single-model LLM for all users ($2,250/mo at 5M), pure rule-based only
+**Why:** 95% of users get identical quality from $0 rules. LLM reserved for high-risk bulk and ambiguous boundary scores where marginal accuracy matters.
+**Constraint:** NEVER route all users through LLM. ALWAYS start with rule engine as baseline. Gemini has ENABLE_GEMINI kill switch.
+
+## DEC-014: Self-learning feedback loop with 60-day outcome window (2026-02)
+**Chose:** 60-day outcome validation, z-score drift detection (configurable 2-sigma), consecutive-run governance before alerting
+**Over:** 30-day window (too short for remittance cadence), static model without feedback, auto-retrain on single drift event
+**Why:** Remittance users transact monthly. 60 days matches churn definition. Consecutive-run governance prevents false alarms from single noisy runs.
+**Constraint:** NEVER auto-deploy retrained models or threshold changes. ALWAYS require human approval. Drift alerts fire only after 2+ consecutive degraded runs.

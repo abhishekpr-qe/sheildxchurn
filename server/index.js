@@ -8,10 +8,11 @@ const yaml = require('js-yaml');
 
 const { CFG, REFRESH_INTERVAL } = require('./config');
 const { data, userIndex } = require('./services/cache');
-const { redshiftPool, refreshAllData } = require('./services/redshift');
+const { redshiftPool, refreshAllData, initPredictionsTable } = require('./services/redshift');
 const { refreshMixpanelData } = require('./services/mixpanel');
 const { s3 } = require('./services/campaign');
 const { initCooldownTable, loadCooldownsFromDB } = require('./services/cooldown');
+const { checkDrift } = require('./services/drift');
 const { createLogger } = require('./lib/logger');
 const log = createLogger('server');
 
@@ -42,6 +43,7 @@ function createApp() {
   require('./routes/dossier')(app);
   require('./routes/campaigns')(app);
   require('./routes/ai')(app);
+  require('./routes/predictions')(app);
 
   app.get('/healthz', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
@@ -72,12 +74,23 @@ if (require.main === module) {
       .then(() => loadCooldownsFromDB())
       .catch(e => log.warn('Cooldown init failed', { error: e.message }));
 
+    initPredictionsTable()
+      .catch(e => log.warn('Predictions table init failed', { error: e.message }));
+
     if (redshiftPool) {
       setTimeout(() => {
         log.info('Starting initial Redshift refresh');
-        refreshAllData();
+        refreshAllData().then(() => {
+          const drift = checkDrift();
+          if (drift.alert) log.warn('MODEL DRIFT ALERT', drift);
+        });
       }, 5000);
-      setInterval(refreshAllData, REFRESH_INTERVAL);
+      setInterval(() => {
+        refreshAllData().then(() => {
+          const drift = checkDrift();
+          if (drift.alert) log.warn('MODEL DRIFT ALERT', drift);
+        });
+      }, REFRESH_INTERVAL);
     }
 
     if (CFG.MIXPANEL_SECRET) {
