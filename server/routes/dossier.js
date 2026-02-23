@@ -139,8 +139,11 @@ module.exports = function(app) {
       exec.active_30d = active;
       exec.churn_rate_baseline = total > 0 ? Math.round((1 - active / total) * 10000) / 10000 : exec.churn_rate_baseline;
     }
+    // Always derive predicted_churn_30d from actual at-risk count
     if (liveData.early_warnings?.rows?.length) {
       exec.predicted_churn_30d = liveData.early_warnings.row_count;
+    } else {
+      exec.predicted_churn_30d = (data.at_risk_users || []).length;
     }
     if (liveData.monthly_trends?.rows?.length) {
       const latest = liveData.monthly_trends.rows[liveData.monthly_trends.rows.length - 1];

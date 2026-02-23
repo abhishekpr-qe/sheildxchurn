@@ -1,4 +1,4 @@
-const { writePredictions, evaluatePredictions } = require('../services/redshift');
+const { writePredictions, evaluatePredictions, localPgPool } = require('../services/redshift');
 const { getRuleVersion } = require('../services/rules');
 const { getCostSummary } = require('../services/llm-cost');
 const { checkDrift } = require('../services/drift');
@@ -73,6 +73,40 @@ module.exports = function(app) {
     } catch (e) {
       log.error('Rule proposal error', { error: e.message });
       res.status(500).json({ error: 'Proposal failed', detail: e.message });
+    }
+  });
+
+  // POST /api/predictions/seed-outcomes — Backdate predictions + add dummy outcomes for demo
+  app.post('/api/predictions/seed-outcomes', async (req, res) => {
+    if (!localPgPool) return res.status(500).json({ error: 'Local PG not configured' });
+    const client = await localPgPool.connect();
+    try {
+      // Backdate predictions to 75 days ago so they fall in the evaluation window
+      await client.query(`UPDATE churn_predictions SET predicted_at = NOW() - INTERVAL '75 days' WHERE actual_outcome IS NULL`);
+
+      // Seed realistic outcomes: CRITICAL/HIGH mostly churn, LOW mostly retain
+      await client.query(`
+        UPDATE churn_predictions SET
+          actual_outcome = CASE
+            WHEN risk_tier = 'CRITICAL' AND random() < 0.78 THEN 'churned'
+            WHEN risk_tier = 'HIGH' AND random() < 0.55 THEN 'churned'
+            WHEN risk_tier = 'MEDIUM' AND random() < 0.32 THEN 'churned'
+            WHEN risk_tier = 'LOW' AND random() < 0.08 THEN 'churned'
+            ELSE 'retained'
+          END,
+          outcome_evaluated_at = NOW()
+        WHERE actual_outcome IS NULL`);
+
+      const { rows } = await client.query(`
+        SELECT risk_tier, actual_outcome, COUNT(*) as cnt
+        FROM churn_predictions
+        WHERE actual_outcome IS NOT NULL
+        GROUP BY risk_tier, actual_outcome
+        ORDER BY risk_tier, actual_outcome`);
+
+      res.json({ seeded: true, breakdown: rows });
+    } finally {
+      client.release();
     }
   });
 

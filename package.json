@@ -10,7 +10,9 @@
     "dev": "node server/index.js",
     "generate-constants": "python3 -c \"import json,sys;sys.path.insert(0,'.');from src.churn.domain.constants import *;json.dump({k:v for k,v in locals().items() if k.isupper() and not k.startswith('_')},open('server/constants.json','w'),indent=2)\"",
     "test": "make check",
-    "test:node": "npx jest"
+    "test:node": "npx jest",
+    "build:fe": "cd frontend && npm run build",
+    "dev:fe": "cd frontend && npm run dev"
   },
   "keywords": [],
   "author": "",

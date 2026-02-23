@@ -75,3 +75,21 @@
 **Over:** 30-day window (too short for remittance cadence), static model without feedback, auto-retrain on single drift event
 **Why:** Remittance users transact monthly. 60 days matches churn definition. Consecutive-run governance prevents false alarms from single noisy runs.
 **Constraint:** NEVER auto-deploy retrained models or threshold changes. ALWAYS require human approval. Drift alerts fire only after 2+ consecutive degraded runs.
+
+## DEC-015: Dual-port Express server — FE (3000) + BE (3001) same process (2026-02)
+**Chose:** Single Express app listening on both port 3000 (frontend) and 3001 (backend API)
+**Over:** Separate static server (npx serve) for frontend, nginx reverse proxy, API_BASE cross-origin calls
+**Why:** Cloudflare ZTNA intercepts cross-origin requests before they reach the origin server, stripping CORS headers. Same-origin eliminates CORS entirely.
+**Constraint:** NEVER use cross-domain API calls between -fe and -be Cloudflare tunnel domains. Same Express process serves both.
+
+## DEC-016: Derive predicted_churn_30d from live data, never hardcode (2026-02)
+**Chose:** Runtime derivation: Redshift early_warnings count when available, else at_risk_users array length
+**Over:** Static CSV value for predicted_churn_30d
+**Why:** Hardcoded CSV value (301) was identical to total_users — misleading. Deriving from actual scored data ensures accuracy across CSV seed and Redshift live states.
+**Constraint:** NEVER hardcode aggregate metrics in CSV seeds when they can be computed from the underlying data.
+
+## DEC-017: Remove DEFAULT_LIMITS truncation for dashboard data (2026-02)
+**Chose:** Increased at_risk/churned/healthy limits from 80/40/40 to 500 each
+**Over:** Low limits that hid 60% of scored users from Risk Explorer
+**Why:** With 200-500 users, artificial pagination hides data without performance benefit. Users expect to see all scored records.
+**Constraint:** Only re-introduce limits when user count exceeds 5K and frontend rendering becomes measurably slow.

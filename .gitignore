@@ -43,5 +43,8 @@ Thumbs.db
 .idea/
 *.swp
 
+# Frontend build artifacts
+frontend/dist/
+
 # Claude Code (local permissions are machine-specific)
 .claude/settings.local.json
